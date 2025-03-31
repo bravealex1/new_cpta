@@ -35,7 +35,7 @@ if "corrections" not in st.session_state:
 # --------------------------------------------------
 # 3. Define Paths
 # --------------------------------------------------
-BASE_IMAGE_DIR = r"C:\Users\alexvanhalen\OneDrive\Desktop\CPTE_Update\2D_Image"
+BASE_IMAGE_DIR = r"2D_Image"
 
 # Collect each subfolder in 2D_Image as a "case"
 cases = [
