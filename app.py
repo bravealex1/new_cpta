@@ -28,11 +28,9 @@ if "corrections" not in st.session_state:
 # For storing assembled report from organ-by-organ editing in AI edit page
 if "assembled_report" not in st.session_state:
     st.session_state["assembled_report"] = ""
-
-# Optional: track start time for each "page"
-if "start_time" not in st.session_state:
-    st.session_state.start_time = time.time()
-
+# Flag for Turing Test evaluation submission
+if "turing_test_submitted" not in st.session_state:
+    st.session_state.turing_test_submitted = False
 # --------------------------------------------------
 # 3. Define Paths
 # --------------------------------------------------
@@ -101,7 +99,7 @@ def reset_evaluation():
 # --------------------------------------------------
 # 5. Turing Test Page
 #    - Show pred.txt vs. text.txt in random order,
-#      with image reveal on demand.
+#      with image reveal on re-evaluation.
 # --------------------------------------------------
 def turing_test():
     case_index = st.session_state.last_case
@@ -114,6 +112,12 @@ def turing_test():
         return
     case_id = cases[case_index]
     st.markdown(f"### Turing Test for Case: **{case_id}** (Case {case_index+1} of {total_cases})")
+    
+    # Display a global "Save Progress & Go Back" button
+    if st.button("Save Progress & Go Back", key=f"go_back_global_turing_{case_id}"):
+        st.experimental_set_query_params(page="index")
+        st.session_state.page = "index"
+        st.rerun()
 
     # Load text
     subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
@@ -141,28 +145,28 @@ def turing_test():
     st.markdown("#### Report B")
     st.text_area("Report B", reportB_text, height=300, key=f"reportB_{case_id}")
 
-    # Instead of showing images immediately, use a reveal button
-    image_key = f"show_images_{case_id}"
-    if image_key not in st.session_state:
-        st.session_state[image_key] = False
-    if not st.session_state[image_key]:
-        if st.button("Reveal Slice Images", key=f"reveal_images_{case_id}"):
-            st.session_state[image_key] = True
-            st.rerun()
-    else:
-        st.markdown("#### Slice Images")
-        display_slice_carousel(case_id)
-
-    # Let the rater evaluate which report is ground truth
+    # Evaluation section (images are not revealed initially)
     st.markdown("#### Evaluation")
     evaluation_choice = st.radio("Which report is ground truth?",
                                  ("Report A", "Report B", "Not sure"),
                                  key=f"choice_{case_id}")
     if st.button("Submit Turing Test Evaluation", key=f"submit_turing_{case_id}"):
+        st.session_state.turing_test_submitted = True
         st.success(f"Submitted evaluation: {evaluation_choice}")
-        st.session_state.last_case = case_index + 1
-        st.session_state.current_slice = 0
         st.rerun()
+
+    # If evaluation is submitted, display images for re-evaluation
+    if st.session_state.turing_test_submitted:
+        st.markdown("#### Slice Images for Re-Evaluation")
+        display_slice_carousel(case_id)
+        if st.button("Go Back and Re-evaluate", key=f"go_back_{case_id}"):
+            st.session_state.turing_test_submitted = False
+            st.rerun()
+        if st.button("Continue to Next Case", key=f"continue_{case_id}"):
+            st.session_state.last_case = case_index + 1
+            st.session_state.current_slice = 0
+            st.session_state.turing_test_submitted = False
+            st.rerun()
 
 # --------------------------------------------------
 # 6. Standard Evaluation Page
@@ -179,6 +183,12 @@ def evaluate_case():
 
     case_id = cases[case_index]
     st.markdown(f"### Evaluating Case: **{case_id}** (Case {case_index+1} of {total_cases})")
+    
+    # Global "Save Progress & Go Back" button
+    if st.button("Save Progress & Go Back", key=f"go_back_global_eval_{case_id}"):
+        st.experimental_set_query_params(page="index")
+        st.session_state.page = "index"
+        st.rerun()
 
     # Load text reports
     subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
@@ -286,7 +296,15 @@ def ai_edit():
     subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
     ai_report = load_text_file(os.path.join(subfolder, "pred.txt"))
     st.markdown(f"### AI Report Editing for Case: **{case_id}** (Case {case_index+1} of {total_cases})")
+    
+    # Global "Save Progress & Go Back" button
+    if st.button("Save Progress & Go Back", key=f"go_back_global_ai_{case_id}"):
+        st.experimental_set_query_params(page="index")
+        st.session_state.page = "index"
+        st.rerun()
+    
     st.markdown("#### AI Report")
+    st.text_area("AI Report", ai_report, height=200, key=f"ai_report_overview_{case_id}")
     
     # Select editing mode: free editing or organ-by-organ editing
     edit_mode = st.radio("Choose Editing Mode:", ("Free Editing", "Organ-by-Organ Editing"), key=f"edit_mode_{case_id}")
