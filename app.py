@@ -119,12 +119,12 @@ def turing_test():
         st.session_state.page = "index"
         st.rerun()
 
-    # Load text
+    # Load text files for reports
     subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
     ground_truth_report = load_text_file(os.path.join(subfolder, "text.txt"))
     ai_report = load_text_file(os.path.join(subfolder, "pred.txt"))
 
-    # Decide which text to show as Report A or Report B
+    # Determine assignment order for which report is labeled A/B.
     assignments = st.session_state.get('assignments', {})
     if str(case_index) in assignments:
         assign_A = assignments[str(case_index)]
@@ -145,26 +145,50 @@ def turing_test():
     st.markdown("#### Report B")
     st.text_area("Report B", reportB_text, height=300, key=f"reportB_{case_id}")
 
-    # Evaluation section (images are not revealed initially)
-    st.markdown("#### Evaluation")
-    evaluation_choice = st.radio("Which report is ground truth?",
-                                 ("Report A", "Report B", "Not sure"),
-                                 key=f"choice_{case_id}")
-    if st.button("Submit Turing Test Evaluation", key=f"submit_turing_{case_id}"):
-        st.session_state.turing_test_submitted = True
-        st.success(f"Submitted evaluation: {evaluation_choice}")
-        st.rerun()
-
-    # If evaluation is submitted, display images for re-evaluation
-    if st.session_state.turing_test_submitted:
+    # -------------------------------
+    # Initial Evaluation (no images)
+    # -------------------------------
+    if "initial_evaluation" not in st.session_state:
+        evaluation_choice = st.radio("Which report is ground truth?",
+                                     ("Report A", "Report B", "Not sure"),
+                                     key=f"choice_{case_id}")
+        if st.button("Submit Evaluation (Initial - without images)", key=f"submit_initial_{case_id}"):
+            st.session_state.initial_evaluation = evaluation_choice
+            st.session_state.turing_test_submitted = True
+            st.success(f"Initial evaluation recorded: {evaluation_choice}")
+            st.rerun()
+    else:
+        st.markdown("### Evaluation (After Viewing Images)")
+        # --------------------------------------
+        # Re-Evaluation after images are shown:
+        # --------------------------------------
         st.markdown("#### Slice Images for Re-Evaluation")
         display_slice_carousel(case_id)
-        if st.button("Go Back and Re-evaluate", key=f"go_back_{case_id}"):
-            st.session_state.turing_test_submitted = False
-            st.rerun()
+        
+        st.markdown(f"**Your initial evaluation was:** {st.session_state.initial_evaluation}")
+        st.markdown("Would you like to update your evaluation after viewing the images?")
+        update_choice = st.radio("Update Evaluation", 
+                                 ("Keep my initial evaluation", "Update my evaluation"),
+                                 key=f"update_choice_{case_id}")
+        if update_choice == "Update my evaluation":
+            new_evaluation = st.radio("Select your new evaluation", 
+                                      ("Report A", "Report B", "Not sure"),
+                                      key=f"new_choice_{case_id}")
+        else:
+            new_evaluation = st.session_state.initial_evaluation
+
+        if st.button("Record Final Evaluation", key=f"record_final_{case_id}"):
+            st.session_state.final_evaluation = new_evaluation
+            st.success(f"Final evaluation recorded: {st.session_state.final_evaluation}")
+
         if st.button("Continue to Next Case", key=f"continue_{case_id}"):
+            # Optionally, you can save both the initial and final evaluations to file here.
             st.session_state.last_case = case_index + 1
             st.session_state.current_slice = 0
+            # Clear the evaluation responses so the next case starts fresh
+            del st.session_state.initial_evaluation
+            if "final_evaluation" in st.session_state:
+                del st.session_state.final_evaluation
             st.session_state.turing_test_submitted = False
             st.rerun()
 
