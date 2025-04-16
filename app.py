@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # import streamlit as st
 # import os
 # import json
@@ -363,6 +364,8 @@
 #     index()
 
 
+=======
+>>>>>>> ebfbba259d47bfae9068c999e27062b76e43948e
 import streamlit as st 
 import os
 import json
@@ -399,7 +402,11 @@ if "turing_test_submitted" not in st.session_state:
 # --------------------------------------------------
 # 3. Define Paths
 # --------------------------------------------------
+<<<<<<< HEAD
 BASE_IMAGE_DIR = r"C:\Users\alexvanhalen\OneDrive\Desktop\CPTE_Update\2D_Image"
+=======
+BASE_IMAGE_DIR = r"2D_Image"
+>>>>>>> ebfbba259d47bfae9068c999e27062b76e43948e
 cases = [f for f in os.listdir(BASE_IMAGE_DIR)
          if os.path.isdir(os.path.join(BASE_IMAGE_DIR, f))]
 total_cases = len(cases)
