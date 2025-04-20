@@ -8,30 +8,30 @@ import glob
 # --------------------------------------------------
 # Sidebar: View Saved Logs Toggle
 # --------------------------------------------------
-if "show_logs" not in st.session_state:
-    st.session_state.show_logs = False
+# if "show_logs" not in st.session_state:
+#     st.session_state.show_logs = False
 
-with st.sidebar:
-    if st.button("📊 View Saved Logs"):
-        st.session_state.show_logs = not st.session_state.show_logs
-    if st.session_state.show_logs:
-        st.subheader("Progress Logs (CSV)")
-        for filepath in sorted(glob.glob("logs/*_progress.csv")):
-            st.markdown(f"**{os.path.basename(filepath)}**")
-            try:
-                df = pd.read_csv(filepath)
-                st.dataframe(df)
-            except Exception as e:
-                st.warning(f"Failed to read {filepath}: {e}")
-        st.subheader("Annotations (JSON)")
-        for filepath in sorted(glob.glob("evaluations/*_annotations.json")):
-            st.markdown(f"**{os.path.basename(filepath)}**")
-            try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                st.json(data)
-            except Exception as e:
-                st.warning(f"Failed to read {filepath}: {e}")
+# with st.sidebar:
+#     if st.button("📊 View Saved Logs"):
+#         st.session_state.show_logs = not st.session_state.show_logs
+#     if st.session_state.show_logs:
+#         st.subheader("Progress Logs (CSV)")
+#         for filepath in sorted(glob.glob("logs/*_progress.csv")):
+#             st.markdown(f"**{os.path.basename(filepath)}**")
+#             try:
+#                 df = pd.read_csv(filepath)
+#                 st.dataframe(df)
+#             except Exception as e:
+#                 st.warning(f"Failed to read {filepath}: {e}")
+#         st.subheader("Annotations (JSON)")
+#         for filepath in sorted(glob.glob("evaluations/*_annotations.json")):
+#             st.markdown(f"**{os.path.basename(filepath)}**")
+#             try:
+#                 with open(filepath, 'r', encoding='utf-8') as f:
+#                     data = json.load(f)
+#                 st.json(data)
+#             except Exception as e:
+#                 st.warning(f"Failed to read {filepath}: {e}")
 
 # --------------------------------------------------
 # Utility: Save Progress to JSON and CSV
