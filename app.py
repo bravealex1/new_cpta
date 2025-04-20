@@ -415,7 +415,7 @@ def index():
     if total_cases == 0:
         st.error("No cases found.")
         return
-   st.markdown("### Your Progress So Far")
+    st.markdown("### Your Progress So Far")
     st.markdown(
         f"- **Turing Test**: Case {st.session_state.last_case_turing + 1} of {total_cases}"
     )
