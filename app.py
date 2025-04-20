@@ -415,11 +415,16 @@ def index():
     if total_cases == 0:
         st.error("No cases found.")
         return
-    st.markdown(f"Cases: {total_cases}  •  Current: {1 + max(
-        st.session_state.last_case_turing,
-        st.session_state.last_case_standard,
-        st.session_state.last_case_ai
-    )}")
+   st.markdown("### Your Progress So Far")
+    st.markdown(
+        f"- **Turing Test**: Case {st.session_state.last_case_turing + 1} of {total_cases}"
+    )
+    st.markdown(
+        f"- **Standard Evaluation**: Case {st.session_state.last_case_standard + 1} of {total_cases}"
+    )
+    st.markdown(
+        f"- **AI Report Editing**: Case {st.session_state.last_case_ai + 1} of {total_cases}"
+    )
     c1, c2, c3, c4 = st.columns(4)
     if c1.button("Turing Test"):
         st.experimental_set_query_params(page="turing_test")
