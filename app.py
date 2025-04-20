@@ -320,6 +320,7 @@ def ai_edit():
         st.session_state.last_case_ai += 1
         st.session_state.current_slice_ai = 0
         st.rerun()
+        
 
 def view_all_results():
     st.title("All Saved Results")
@@ -328,40 +329,40 @@ def view_all_results():
         st.experimental_set_query_params(page="index")
         st.rerun()
 
-    # 1. Discover all log files
-    all_log_files = glob.glob("logs/*_progress.csv")  
-
-    # 2. Extract unique session IDs via regex
-    pattern = re.compile(r"^[^_]+_([^_]+)_progress\.csv$")  
+    # 1. Scan for all progress CSVs
+    filepaths = glob.glob("logs/*_progress.csv")  
+    
+    # 2. Extract session IDs
     session_ids = {
-        pattern.search(os.path.basename(fp)).group(1)
-        for fp in all_log_files
-        if pattern.search(os.path.basename(fp))
-    }  
-
-    # 3. Let user pick a session
-    selected_sid = st.selectbox(
-        "Choose a Session ID to filter logs",
-        options=sorted(session_ids),
-        index=0
-    )  
-
-    st.markdown(f"**Showing logs for Session ID:** `{selected_sid}`")
-
-    # 4. Filter files by the selected session
-    filtered = [fp for fp in all_log_files if f"_{selected_sid}_" in os.path.basename(fp)]
-
-    # 5. Display logs grouped by category
-    categories = {
-        "turing_test": "Turing Test Logs",
-        "standard_evaluation": "Standard Eval Logs",
-        "ai_edit": "AI Edit Logs"
+        # Option A: simple split
+        os.path.basename(fp).split("_")[1]
+        for fp in filepaths
     }
-    for prefix, title in categories.items():
-        st.subheader(title)
-        for fp in sorted(p for p in filtered if os.path.basename(fp).startswith(prefix)):
-            st.markdown(f"**{os.path.basename(fp)}**")
-            st.dataframe(pd.read_csv(fp))
+    
+    # 3. Sort session IDs
+    session_list = sorted(session_ids)          
+
+    # 4. Display all historical session IDs
+    st.subheader("All Sessions with Saved Progress")
+    for sid in session_list:
+        st.write(f"- `{sid}`")
+
+    # 5. Then display the logs as before
+    st.subheader("Turing Test Logs")
+    for fp in sorted(glob.glob("logs/turing_test_*_progress.csv")):
+        st.markdown(f"**{os.path.basename(fp)}**")
+        st.dataframe(pd.read_csv(fp))
+
+    st.subheader("Standard Eval Logs")
+    for fp in sorted(glob.glob("logs/standard_evaluation_*_progress.csv")):
+        st.markdown(f"**{os.path.basename(fp)}**")
+        st.dataframe(pd.read_csv(fp))
+
+    st.subheader("AI Edit Logs")
+    for fp in sorted(glob.glob("logs/ai_edit_*_progress.csv")):
+        st.markdown(f"**{os.path.basename(fp)}**")
+        st.dataframe(pd.read_csv(fp))
+
 
 # --------------------------------------------------
 # Main Router
