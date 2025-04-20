@@ -325,6 +325,9 @@ def view_all_results():
     if st.button("Home"):
         st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
 
+    sid = st.session_state.session_id
+    st.markdown(f"**Session ID:** `{sid}`")
+
     st.subheader("Turing Test Logs")
     for fp in sorted(glob.glob("logs/turing_test_*_progress.csv")):
         st.markdown(f"**{os.path.basename(fp)}**")
