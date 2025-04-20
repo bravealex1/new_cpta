@@ -467,6 +467,7 @@ def ai_edit():
             st.rerun()
          return
 
+
     case_id = cases[idx]
     st.markdown(f"### AI Report Editing for Case: **{case_id}** (Case {idx+1}/{total_cases})")
 
@@ -584,7 +585,6 @@ def ai_edit():
         st.session_state.assembled_report = ""
 
 
-        # Advance to the next case
         st.session_state.last_case = idx + 1
         st.session_state.current_slice = 0 # Reset slice index for the next case
         st.rerun()
