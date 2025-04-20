@@ -14,32 +14,9 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
 # --------------------------------------------------
-# Sidebar: Toggle View Saved Logs
+# Sidebar: Display Session ID
 # --------------------------------------------------
-# if "show_logs" not in st.session_state:
-#     st.session_state.show_logs = False
-
-# with st.sidebar:
-#     if st.button("📊 View Saved Logs"):
-#         st.session_state.show_logs = not st.session_state.show_logs
-
-#     if st.session_state.show_logs:
-#         st.header("All Progress Logs (CSV)")
-#         for fp in sorted(glob.glob("logs/*_progress.csv")):
-#             st.subheader(os.path.basename(fp))
-#             try:
-#                 st.dataframe(pd.read_csv(fp))
-#             except Exception as e:
-#                 st.error(f"Could not read {fp}: {e}")
-
-#         st.header("All Annotations (JSON)")
-#         for fp in sorted(glob.glob("evaluations/*_annotations.json")):
-#             st.subheader(os.path.basename(fp))
-#             try:
-#                 with open(fp, 'r') as f:
-#                     st.json(json.load(f))
-#             except Exception as e:
-#                 st.error(f"Could not read {fp}: {e}")
+st.sidebar.markdown(f"**Session ID:** `{st.session_state.session_id}`")
 
 # --------------------------------------------------
 # Utility: Save Progress per Category & Session
@@ -166,7 +143,7 @@ def index():
         st.experimental_set_query_params(page="standard_eval")
         st.session_state.page = "standard_eval"
         st.rerun()
-    if c3.button("AI Edit"):
+    if c3.button("AI Report Edit"):
         st.experimental_set_query_params(page="ai_edit")
         st.session_state.page = "ai_edit"
         st.rerun()
