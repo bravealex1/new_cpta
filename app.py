@@ -328,17 +328,23 @@ def view_all_results():
     sid = st.session_state.session_id
     st.markdown(f"**Session ID:** `{sid}`")
 
+    # Turing Test Logs
     st.subheader("Turing Test Logs")
+    st.markdown(f"**Session ID:** `{sid}`")
     for fp in sorted(glob.glob("logs/turing_test_*_progress.csv")):
         st.markdown(f"**{os.path.basename(fp)}**")
         st.dataframe(pd.read_csv(fp))
 
+    # Standard Eval Logs
     st.subheader("Standard Eval Logs")
+    st.markdown(f"**Session ID:** `{sid}`")
     for fp in sorted(glob.glob("logs/standard_evaluation_*_progress.csv")):
         st.markdown(f"**{os.path.basename(fp)}**")
         st.dataframe(pd.read_csv(fp))
 
+    # AI Edit Logs
     st.subheader("AI Edit Logs")
+    st.markdown(f"**Session ID:** `{sid}`")
     for fp in sorted(glob.glob("logs/ai_edit_*_progress.csv")):
         st.markdown(f"**{os.path.basename(fp)}**")
         st.dataframe(pd.read_csv(fp))
