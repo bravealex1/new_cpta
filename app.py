@@ -323,31 +323,44 @@ def ai_edit():
 def view_all_results():
     st.title("All Saved Results")
     if st.button("Home"):
-        st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+        st.session_state.page = "index"
+        st.experimental_set_query_params(page="index")
+        st.rerun()
 
-    sid = st.session_state.session_id
-    st.markdown(f"**Session ID:** `{sid}`")
+    # 1. Discover all log files
+    all_log_files = glob.glob("logs/*_progress.csv")  
 
-    # Turing Test Logs
-    st.subheader("Turing Test Logs")
-    st.markdown(f"**Session ID:** `{sid}`")
-    for fp in sorted(glob.glob("logs/turing_test_*_progress.csv")):
-        st.markdown(f"**{os.path.basename(fp)}**")
-        st.dataframe(pd.read_csv(fp))
+    # 2. Extract unique session IDs via regex
+    pattern = re.compile(r"^[^_]+_([^_]+)_progress\.csv$")  
+    session_ids = {
+        pattern.search(os.path.basename(fp)).group(1)
+        for fp in all_log_files
+        if pattern.search(os.path.basename(fp))
+    }  
 
-    # Standard Eval Logs
-    st.subheader("Standard Eval Logs")
-    st.markdown(f"**Session ID:** `{sid}`")
-    for fp in sorted(glob.glob("logs/standard_evaluation_*_progress.csv")):
-        st.markdown(f"**{os.path.basename(fp)}**")
-        st.dataframe(pd.read_csv(fp))
+    # 3. Let user pick a session
+    selected_sid = st.selectbox(
+        "Choose a Session ID to filter logs",
+        options=sorted(session_ids),
+        index=0
+    )  
 
-    # AI Edit Logs
-    st.subheader("AI Edit Logs")
-    st.markdown(f"**Session ID:** `{sid}`")
-    for fp in sorted(glob.glob("logs/ai_edit_*_progress.csv")):
-        st.markdown(f"**{os.path.basename(fp)}**")
-        st.dataframe(pd.read_csv(fp))
+    st.markdown(f"**Showing logs for Session ID:** `{selected_sid}`")
+
+    # 4. Filter files by the selected session
+    filtered = [fp for fp in all_log_files if f"_{selected_sid}_" in os.path.basename(fp)]
+
+    # 5. Display logs grouped by category
+    categories = {
+        "turing_test": "Turing Test Logs",
+        "standard_evaluation": "Standard Eval Logs",
+        "ai_edit": "AI Edit Logs"
+    }
+    for prefix, title in categories.items():
+        st.subheader(title)
+        for fp in sorted(p for p in filtered if os.path.basename(fp).startswith(prefix)):
+            st.markdown(f"**{os.path.basename(fp)}**")
+            st.dataframe(pd.read_csv(fp))
 
 # --------------------------------------------------
 # Main Router
