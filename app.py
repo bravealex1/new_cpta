@@ -16,30 +16,30 @@ if "session_id" not in st.session_state:
 # --------------------------------------------------
 # Sidebar: Toggle View Saved Logs
 # --------------------------------------------------
-if "show_logs" not in st.session_state:
-    st.session_state.show_logs = False
+# if "show_logs" not in st.session_state:
+#     st.session_state.show_logs = False
 
-with st.sidebar:
-    if st.button("📊 View Saved Logs"):
-        st.session_state.show_logs = not st.session_state.show_logs
+# with st.sidebar:
+#     if st.button("📊 View Saved Logs"):
+#         st.session_state.show_logs = not st.session_state.show_logs
 
-    if st.session_state.show_logs:
-        st.header("All Progress Logs (CSV)")
-        for fp in sorted(glob.glob("logs/*_progress.csv")):
-            st.subheader(os.path.basename(fp))
-            try:
-                st.dataframe(pd.read_csv(fp))
-            except Exception as e:
-                st.error(f"Could not read {fp}: {e}")
+#     if st.session_state.show_logs:
+#         st.header("All Progress Logs (CSV)")
+#         for fp in sorted(glob.glob("logs/*_progress.csv")):
+#             st.subheader(os.path.basename(fp))
+#             try:
+#                 st.dataframe(pd.read_csv(fp))
+#             except Exception as e:
+#                 st.error(f"Could not read {fp}: {e}")
 
-        st.header("All Annotations (JSON)")
-        for fp in sorted(glob.glob("evaluations/*_annotations.json")):
-            st.subheader(os.path.basename(fp))
-            try:
-                with open(fp, 'r') as f:
-                    st.json(json.load(f))
-            except Exception as e:
-                st.error(f"Could not read {fp}: {e}")
+#         st.header("All Annotations (JSON)")
+#         for fp in sorted(glob.glob("evaluations/*_annotations.json")):
+#             st.subheader(os.path.basename(fp))
+#             try:
+#                 with open(fp, 'r') as f:
+#                     st.json(json.load(f))
+#             except Exception as e:
+#                 st.error(f"Could not read {fp}: {e}")
 
 # --------------------------------------------------
 # Utility: Save Progress per Category & Session
