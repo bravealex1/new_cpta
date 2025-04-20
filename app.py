@@ -330,17 +330,15 @@ def view_all_results():
         st.rerun()
 
     # 1. Scan for all progress CSVs
-    filepaths = glob.glob("logs/*_progress.csv")  
-    
+    filepaths = glob.glob("logs/*_progress.csv") 
     # 2. Extract session IDs
     session_ids = {
         # Option A: simple split
         os.path.basename(fp).split("_")[1]
         for fp in filepaths
     }
-    
     # 3. Sort session IDs
-    session_list = sorted(session_ids)          
+    session_list = sorted(session_ids)           
 
     # 4. Display all historical session IDs
     st.subheader("All Sessions with Saved Progress")
