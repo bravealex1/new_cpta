@@ -61,7 +61,7 @@ st.sidebar.markdown(f"**Session ID:** `{st.session_state.session_id}`")
 #    (writes JSON, CSV, and SQLite)
 # --------------------------------------------------
 def save_progress(category: str, progress: dict):
-    # --- filesystem logs ---
+    # filesystem logs
     os.makedirs(DB_DIR, exist_ok=True)
     sid = st.session_state.session_id
 
@@ -70,11 +70,11 @@ def save_progress(category: str, progress: dict):
     with open(jpath, "w") as f:
         json.dump(progress, f, indent=2)
 
-    # CSV (overwrite latest)
+    # CSV
     cpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.csv")
     pd.DataFrame([progress]).to_csv(cpath, index=False)
 
-    # --- SQLite log ---
+    # SQLite
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -420,7 +420,7 @@ def view_all_results():
 
     conn = get_db_connection()
 
-    # 1. All Sessions
+    # 1. List all sessions
     df_sessions = pd.read_sql_query(
         "SELECT DISTINCT session_id FROM progress_logs ORDER BY session_id",
         conn
@@ -429,17 +429,17 @@ def view_all_results():
     for sid in df_sessions["session_id"]:
         st.write(f"- {sid}")
 
-    # 2. Logs by Category
-    for cat,label in [("turing_test","Turing Test Logs"),
-                      ("standard_evaluation","Standard Eval Logs"),
-                      ("ai_edit","AI Report Edit Logs")]:
+    # 2. Turing Test & Standard Eval
+    for cat, label in [
+        ("turing_test", "Turing Test Logs"),
+        ("standard_evaluation", "Standard Eval Logs"),
+    ]:
         st.subheader(label)
         df = pd.read_sql_query(
-            "SELECT session_id, progress_json, timestamp FROM progress_logs WHERE category=? ORDER BY timestamp",
-            conn,
-            params=(cat,)
+            "SELECT session_id, progress_json, timestamp "
+            "FROM progress_logs WHERE category = ? ORDER BY timestamp",
+            conn, params=(cat,)
         )
-        # expand JSON column into separate columns
         if not df.empty:
             df_expanded = pd.concat(
                 [df.drop(columns=["progress_json"]),
@@ -450,21 +450,24 @@ def view_all_results():
         else:
             st.write("— no entries —")
 
-    # 3. Annotations Table
-    st.subheader("All Case Annotations")
-    df_ann = pd.read_sql_query(
-        "SELECT case_id, annotations_json, timestamp FROM annotations ORDER BY timestamp",
+    # 3. AI Report Edit Logs (all entries)
+    st.subheader("AI Report Edit Logs")
+    df_ai = pd.read_sql_query(
+        "SELECT session_id, progress_json, timestamp "
+        "FROM progress_logs "
+        "WHERE category = 'ai_edit' "
+        "ORDER BY timestamp",
         conn
     )
-    if not df_ann.empty:
-        df_ann_expanded = pd.concat(
-            [df_ann.drop(columns=["annotations_json"]),
-             df_ann["annotations_json"].apply(json.loads).explode().apply(pd.Series)],
+    if not df_ai.empty:
+        df_ai_expanded = pd.concat(
+            [df_ai.drop(columns=["progress_json"]),
+             df_ai["progress_json"].apply(json.loads).apply(pd.Series)],
             axis=1
         )
-        st.dataframe(df_ann_expanded)
+        st.dataframe(df_ai_expanded)
     else:
-        st.write("— no annotations —")
+        st.write("— no AI edit logs found —")
 
     conn.close()
 
