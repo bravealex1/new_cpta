@@ -1,802 +1,378 @@
-<<<<<<< HEAD
-# import streamlit as st
-# import os
-# import json
-# import random
-# import time
-# import pandas as pd
-
-# # --------------------------------------------------
-# # 1. Query Parameter Setup
-# # --------------------------------------------------
-# query_params = st.experimental_get_query_params()
-# if "page" in query_params:
-#     st.session_state.page = query_params["page"][0]
-# elif "page" not in st.session_state:
-#     st.session_state.page = "index"
-
-# # --------------------------------------------------
-# # 2. Initialize Session State
-# # --------------------------------------------------
-# if "last_case" not in st.session_state:
-#     st.session_state.last_case = 0
-# if "assignments" not in st.session_state:
-#     st.session_state.assignments = {}
-# if "current_slice" not in st.session_state:
-#     st.session_state.current_slice = 0
-
-# # Optional: track start time for each "page" so we can measure how long a user spent
-# if "start_time" not in st.session_state:
-#     st.session_state.start_time = time.time()
-
-# # For storing corrections/annotations
-# if "corrections" not in st.session_state:
-#     st.session_state["corrections"] = []
-
-# # --------------------------------------------------
-# # 3. Define Paths
-# # --------------------------------------------------
-# BASE_IMAGE_DIR = r"C:\Users\alexvanhalen\OneDrive\Desktop\CPTE_Update\2D_Image"
-
-# # Collect each subfolder in 2D_Image as a "case"
-# cases = [
-#     f for f in os.listdir(BASE_IMAGE_DIR)
-#     if os.path.isdir(os.path.join(BASE_IMAGE_DIR, f))
-# ]
-
-# total_cases = len(cases)
-
-# # --------------------------------------------------
-# # 4. Helper Functions
-# # --------------------------------------------------
-# def load_text_file(file_path):
-#     """Utility to safely load text from a .txt file."""
-#     if not os.path.exists(file_path):
-#         return ""
-#     with open(file_path, 'r', encoding='utf-8') as f:
-#         return f.read()
-
-# def display_slice_carousel(case_id):
-#     """
-#     Displays images in a carousel-like format (Previous/Next buttons).
-#     Assumes all image files are in the subfolder: BASE_IMAGE_DIR / case_id
-#     """
-#     subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
-#     # Collect images (any extension you like: .png, .jpg, .jpeg, etc.)
-#     all_files = os.listdir(subfolder)
-#     slice_images = [
-#         os.path.join(subfolder, f) for f in all_files
-#         if f.lower().endswith(('.png', '.jpg', '.jpeg'))
-#     ]
-#     slice_images.sort()
-
-#     total_slices = len(slice_images)
-#     if total_slices == 0:
-#         st.info("No slices found for this case.")
-#         return
-
-#     col1, col2, col3 = st.columns([1, 8, 1])
-#     with col1:
-#         if st.button("⟨ Prev", key=f"prev_{case_id}"):
-#             if st.session_state.current_slice > 0:
-#                 st.session_state.current_slice -= 1
-#                 st.rerun()
-#     with col2:
-#         current_index = st.session_state.current_slice
-#         st.image(slice_images[current_index], width=600)
-#         st.caption(f"Slice {current_index + 1} of {total_slices}")
-#     with col3:
-#         if st.button("Next ⟩", key=f"next_{case_id}"):
-#             if st.session_state.current_slice < total_slices - 1:
-#                 st.session_state.current_slice += 1
-#                 st.rerun()
-
-# def save_annotations(case_id, annotations):
-#     """
-#     Saves annotations to a JSON file. 
-#     Adjust as needed for your environment.
-#     """
-#     os.makedirs('evaluations', exist_ok=True)
-#     save_path = os.path.join('evaluations', f"{case_id}_annotations.json")
-#     with open(save_path, 'w') as f:
-#         json.dump(annotations, f, indent=2)
-
-# def reset_evaluation():
-#     """Clears session state for a fresh start."""
-#     for key in list(st.session_state.keys()):
-#         del st.session_state[key]
-#     st.experimental_set_query_params(page="index")
-#     st.rerun()
-
-# # --------------------------------------------------
-# # 5. Turing Test Page
-# #    - Show pred.txt vs. text.txt in random order
-# # --------------------------------------------------
-# def turing_test():
-#     case_index = st.session_state.last_case
-
-#     if case_index >= total_cases:
-#         st.markdown("### Turing Test complete. Thank you!")
-#         if st.button("Return to Home"):
-#             st.experimental_set_query_params(page="index")
-#             st.session_state.page = "index"
-#             st.rerun()
-#         return
-
-#     case_id = cases[case_index]
-#     st.markdown(f"### Turing Test for Case: **{case_id}** (Case {case_index+1} of {total_cases})")
-
-#     # Load text
-#     subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
-#     ground_truth_report = load_text_file(os.path.join(subfolder, "text.txt"))
-#     ai_report = load_text_file(os.path.join(subfolder, "pred.txt"))
-
-#     # Decide which text to show as "Report A" or "Report B"
-#     assignments = st.session_state.get('assignments', {})
-#     if str(case_index) in assignments:
-#         assign_A = assignments[str(case_index)]
-#     else:
-#         assign_A = random.choice([True, False])
-#         assignments[str(case_index)] = assign_A
-#         st.session_state.assignments = assignments
-
-#     if assign_A:
-#         reportA_text = ai_report
-#         reportB_text = ground_truth_report
-#     else:
-#         reportA_text = ground_truth_report
-#         reportB_text = ai_report
-
-#     # Show text areas
-#     st.markdown("#### Report A")
-#     st.text_area("Report A", reportA_text, height=300, key=f"reportA_{case_id}")
-#     st.markdown("#### Report B")
-#     st.text_area("Report B", reportB_text, height=300, key=f"reportB_{case_id}")
-
-#     # Show images if desired
-#     show_images = st.checkbox("Show slice images", value=True, key=f"show_images_{case_id}")
-#     if show_images:
-#         st.markdown("#### Slice Images")
-#         display_slice_carousel(case_id)
-
-#     # Let user guess which is which or which is better
-#     choice = st.radio(
-#         "Which report is ground truth?",
-#         ("Report A", "Report B", "Not sure"),
-#         key=f"choice_{case_id}"
-#     )
-
-#     if st.button("Submit Turing Test Evaluation", key=f"submit_turing_{case_id}"):
-#         # Optional: store the choice somewhere
-#         st.success(f"Submitted evaluation: {choice}")
-#         # Move to next case
-#         st.session_state.last_case = case_index + 1
-#         st.session_state.current_slice = 0
-#         st.rerun()
-
-# # --------------------------------------------------
-# # 6. Standard Evaluation Page
-# #    - Radiologist reviews pred.txt vs. text.txt
-# #    - Adds notes/corrections
-# # --------------------------------------------------
-# def evaluate_case():
-#     case_index = st.session_state.last_case
-
-#     if case_index >= total_cases:
-#         st.markdown("### Evaluation complete. Thank you!")
-#         if st.button("Reset Evaluation"):
-#             reset_evaluation()
-#         return
-
-#     case_id = cases[case_index]
-#     st.markdown(f"### Evaluating Case: **{case_id}** (Case {case_index+1} of {total_cases})")
-
-#     # Load text
-#     subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
-#     ground_truth_report = load_text_file(os.path.join(subfolder, "text.txt"))
-#     ai_report = load_text_file(os.path.join(subfolder, "pred.txt"))
-
-#     # Show them side by side or in random order
-#     assignments = st.session_state.get('assignments', {})
-#     if str(case_index) in assignments:
-#         assign_A = assignments[str(case_index)]
-#     else:
-#         assign_A = random.choice([True, False])
-#         assignments[str(case_index)] = assign_A
-#         st.session_state.assignments = assignments
-
-#     if assign_A:
-#         reportA_text = ai_report
-#         reportB_text = ground_truth_report
-#     else:
-#         reportA_text = ground_truth_report
-#         reportB_text = ai_report
-
-#     st.markdown("#### Report A")
-#     st.text_area("Report A", reportA_text, height=200, key=f"reportA_{case_id}")
-#     st.markdown("#### Report B")
-#     st.text_area("Report B", reportB_text, height=200, key=f"reportB_{case_id}")
-
-#     # Display images
-#     st.markdown("#### Slice Images")
-#     display_slice_carousel(case_id)
-
-#     # Let the radiologist add corrections or notes
-#     st.markdown("#### Corrections / Annotations")
-#     detected_organs = [
-#         "LIVER", "PORTAL VEIN", "INTRAHEPATIC IVC", "INTRAHEPATIC BILE DUCTS",
-#         "COMMON BILE DUCT", "GALLBLADDER", "PANCREAS", "RIGHT KIDNEY",
-#         "OTHER FINDINGS"
-#     ]
-#     st.write("Select the organs you want to correct:")
-#     selected_organs = [
-#         organ for organ in detected_organs
-#         if st.checkbox(organ, key=f"organ_{case_id}_{organ}")
-#     ]
-
-#     if selected_organs:
-#         st.write("Enter correction details:")
-#         organ_to_correct = st.selectbox(
-#             "Organ to correct", options=selected_organs, key=f"organ_select_{case_id}"
-#         )
-#         predefined_reasons = ["Measurement error", "Misinterpretation", "Missing finding", "Other"]
-#         reason_choice = st.selectbox(
-#             "Reason for disagreement", options=predefined_reasons, key=f"reason_choice_{case_id}"
-#         )
-#         final_reason = (
-#             st.text_input("Specify other reason", key=f"reason_text_{case_id}")
-#             if reason_choice == "Other"
-#             else reason_choice
-#         )
-#         correction_text = st.text_area("Correction details", key=f"correction_text_{case_id}")
-
-#         if st.button("Add Correction", key=f"add_correction_{case_id}"):
-#             new_correction = {
-#                 "case_id": case_id,
-#                 "organ": organ_to_correct,
-#                 "reason": final_reason,
-#                 "details": correction_text
-#             }
-#             st.session_state["corrections"].append(new_correction)
-#             st.success("Correction added!")
-#             st.rerun()
-
-#     # Display existing corrections for this case
-#     case_corrections = [
-#         c for c in st.session_state["corrections"] if c["case_id"] == case_id
-#     ]
-#     if case_corrections:
-#         st.markdown("#### Current Corrections for This Case")
-#         corrections_df = pd.DataFrame(case_corrections)
-#         st.table(corrections_df.drop(columns=["case_id"]))
-
-#     # Submit button
-#     if st.button("Submit All Corrections", key=f"submit_corrections_{case_id}"):
-#         try:
-#             # Save to JSON (if you want a separate file for each case)
-#             save_annotations(case_id, case_corrections)
-#             st.success("Annotations saved.")
-#             # Clear local corrections from memory
-#             st.session_state["corrections"] = [
-#                 c for c in st.session_state["corrections"] if c["case_id"] != case_id
-#             ]
-#             st.session_state.last_case = case_index + 1
-#             st.session_state.current_slice = 0
-#             st.rerun()
-#         except Exception as e:
-#             st.error(f"Failed to save annotations: {e}")
-
-# # --------------------------------------------------
-# # 7. AI Edit Page (optional)
-# # --------------------------------------------------
-# def ai_edit():
-#     case_index = st.session_state.last_case
-
-#     if case_index >= total_cases:
-#         st.markdown("### All cases have been edited. Thank you!")
-#         if st.button("Return to Home"):
-#             st.experimental_set_query_params(page="index")
-#             st.session_state.page = "index"
-#             st.rerun()
-#         return
-
-#     case_id = cases[case_index]
-#     subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
-#     ai_report = load_text_file(os.path.join(subfolder, "pred.txt"))
-
-#     st.markdown(f"### AI Report Editing for Case: **{case_id}** (Case {case_index+1} of {total_cases})")
-#     st.markdown("#### AI Report")
-#     edited_report = st.text_area("Edit the AI-generated report", ai_report, height=300, key=f"ai_edit_{case_id}")
-
-#     # (Optional) Show images for reference
-#     st.markdown("#### Slice Images")
-#     display_slice_carousel(case_id)
-
-#     if st.button("Submit Edited Report", key=f"submit_edit_{case_id}"):
-#         st.success("Edited report submitted.")
-#         # Here you could save the edited report to file or database
-#         # e.g., save_annotations(case_id, {"edited_ai_report": edited_report})
-#         st.session_state.last_case = case_index + 1
-#         st.session_state.current_slice = 0
-#         st.rerun()
-
-# # --------------------------------------------------
-# # 8. Landing Page
-# # --------------------------------------------------
-# def index():
-#     last_case = st.session_state.last_case
-#     if last_case >= total_cases:
-#         st.markdown("### All selected cases have been evaluated. Thank you!")
-#         if st.button("Reset Evaluation"):
-#             reset_evaluation()
-#     else:
-#         st.markdown("### Welcome to the Survey")
-#         st.markdown(f"We have **{total_cases}** case(s) to evaluate.")
-#         col1, col2, col3 = st.columns(3)
-#         with col1:
-#             if st.button("Start Turing Test Evaluation"):
-#                 st.experimental_set_query_params(page="turing_test")
-#                 st.session_state.page = "turing_test"
-#                 st.rerun()
-#         with col2:
-#             if st.button("Start AI Report Editing"):
-#                 st.experimental_set_query_params(page="ai_edit")
-#                 st.session_state.page = "ai_edit"
-#                 st.rerun()
-#         with col3:
-#             if st.button("Start Standard Evaluation"):
-#                 st.experimental_set_query_params(page="evaluate_case")
-#                 st.session_state.page = "evaluate_case"
-#                 st.rerun()
-
-# # --------------------------------------------------
-# # 9. Main Navigation
-# # --------------------------------------------------
-# if st.session_state.page == "index":
-#     index()
-# elif st.session_state.page == "evaluate_case":
-#     evaluate_case()
-# elif st.session_state.page == "turing_test":
-#     turing_test()
-# elif st.session_state.page == "ai_edit":
-#     ai_edit()
-# else:
-#     index()
-
-
-=======
->>>>>>> ebfbba259d47bfae9068c999e27062b76e43948e
-import streamlit as st 
+import re
+import streamlit as st
 import os
 import json
+import uuid
 import random
-import time
 import pandas as pd
+import glob
 
 # --------------------------------------------------
-# 1. Query Parameter Setup
+# 0. Generate & Store Unique Session ID
 # --------------------------------------------------
-query_params = st.experimental_get_query_params()
-if "page" in query_params:
-    st.session_state.page = query_params["page"][0]
+if "session_id" not in st.session_state:
+    # Version 4 UUID gives a random 128‑bit ID
+    st.session_state.session_id = str(uuid.uuid4())
+
+# --------------------------------------------------
+# Sidebar: Display Session ID
+# --------------------------------------------------
+st.sidebar.markdown(f"**Session ID:** `{st.session_state.session_id}`")
+
+# --------------------------------------------------
+# Utility: Save Progress per Category & Session
+# --------------------------------------------------
+def save_progress(category: str, progress: dict):
+    os.makedirs("logs", exist_ok=True)  # ensure logs dir exists :contentReference[oaicite:7]{index=7}
+    sid = st.session_state.session_id
+
+    # JSON
+    jpath = os.path.join("logs", f"{category}_{sid}_progress.json")
+    with open(jpath, "w") as f:
+        json.dump(progress, f, indent=2)
+
+    # CSV (overwrite latest)
+    cpath = os.path.join("logs", f"{category}_{sid}_progress.csv")
+    pd.DataFrame([progress]).to_csv(cpath, index=False)
+
+# --------------------------------------------------
+# Utility: Save Annotations per Case
+# --------------------------------------------------
+def save_annotations(case_id: str, annotations: list):
+    os.makedirs("evaluations", exist_ok=True)
+    path = os.path.join("evaluations", f"{case_id}_annotations.json")
+    with open(path, "w") as f:
+        json.dump(annotations, f, indent=2)
+
+# --------------------------------------------------
+# Initialize per‑workflow Session State
+# --------------------------------------------------
+def init_state(key, default):
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+# Turing Test
+init_state("last_case_turing", 0)
+init_state("current_slice_turing", 0)
+init_state("assignments_turing", {})
+init_state("initial_eval_turing", None)
+init_state("final_eval_turing", None)
+init_state("viewed_images_turing", False)
+
+# Standard Evaluation
+init_state("last_case_standard", 0)
+init_state("current_slice_standard", 0)
+init_state("assignments_standard", {})
+init_state("corrections_standard", [])
+
+# AI Edit
+init_state("last_case_ai", 0)
+init_state("current_slice_ai", 0)
+init_state("corrections_ai", [])
+init_state("assembled_ai", "")
+
+# --------------------------------------------------
+# Routing Setup
+# --------------------------------------------------
+params = st.experimental_get_query_params()
+if "page" in params:
+    st.session_state.page = params["page"][0]
 elif "page" not in st.session_state:
     st.session_state.page = "index"
 
-# --------------------------------------------------
-# 2. Initialize Session State
-# --------------------------------------------------
-if "last_case" not in st.session_state:
-    st.session_state.last_case = 0
-if "assignments" not in st.session_state:
-    st.session_state.assignments = {}
-if "current_slice" not in st.session_state:
-    st.session_state.current_slice = 0
-if "corrections" not in st.session_state:
-    st.session_state["corrections"] = []
-# For storing assembled report from organ-by-organ editing in AI edit page
-if "assembled_report" not in st.session_state:
-    st.session_state["assembled_report"] = ""
-# Flag for Turing Test evaluation submission
-if "turing_test_submitted" not in st.session_state:
-    st.session_state.turing_test_submitted = False
-# --------------------------------------------------
-# 3. Define Paths
-# --------------------------------------------------
-<<<<<<< HEAD
-BASE_IMAGE_DIR = r"C:\Users\alexvanhalen\OneDrive\Desktop\CPTE_Update\2D_Image"
-=======
-BASE_IMAGE_DIR = r"2D_Image"
->>>>>>> ebfbba259d47bfae9068c999e27062b76e43948e
-cases = [f for f in os.listdir(BASE_IMAGE_DIR)
-         if os.path.isdir(os.path.join(BASE_IMAGE_DIR, f))]
+BASE_IMAGE_DIR = "2D_Image"
+cases = sorted(d for d in os.listdir(BASE_IMAGE_DIR) if os.path.isdir(os.path.join(BASE_IMAGE_DIR, d)))
 total_cases = len(cases)
 
 # --------------------------------------------------
-# 4. Helper Functions
+# Helpers
 # --------------------------------------------------
-def load_text_file(file_path):
-    """Utility to safely load text from a .txt file."""
-    if not os.path.exists(file_path):
-        return ""
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return f.read()
+def load_text(path):
+    return open(path, "r", encoding="utf-8").read() if os.path.exists(path) else ""
 
-def display_slice_carousel(case_id):
-    """
-    Displays images in a carousel-like format (Previous/Next buttons).
-    Assumes all image files are in the subfolder: BASE_IMAGE_DIR / case_id.
-    """
-    subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
-    all_files = os.listdir(subfolder)
-    slice_images = [os.path.join(subfolder, f) for f in all_files
-                    if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-    slice_images.sort()
-    total_slices = len(slice_images)
-    if total_slices == 0:
-        st.info("No slices found for this case.")
-        return
-    col1, col2, col3 = st.columns([1, 8, 1])
-    with col1:
-        if st.button("⟨ Prev", key=f"prev_{case_id}"):
-            if st.session_state.current_slice > 0:
-                st.session_state.current_slice -= 1
-                st.rerun()
-    with col2:
-        current_index = st.session_state.current_slice
-        st.image(slice_images[current_index], width=600)
-        st.caption(f"Slice {current_index + 1} of {total_slices}")
-    with col3:
-        if st.button("Next ⟩", key=f"next_{case_id}"):
-            if st.session_state.current_slice < total_slices - 1:
-                st.session_state.current_slice += 1
-                st.rerun()
-
-def save_annotations(case_id, annotations):
-    """
-    Saves annotations to a JSON file.
-    Adjust as needed for your environment.
-    """
-    os.makedirs('evaluations', exist_ok=True)
-    save_path = os.path.join('evaluations', f"{case_id}_annotations.json")
-    with open(save_path, 'w') as f:
-        json.dump(annotations, f, indent=2)
-
-def reset_evaluation():
-    """Clears session state for a fresh start."""
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.experimental_set_query_params(page="index")
-    st.rerun()
-
-# --------------------------------------------------
-# 5. Turing Test Page
-#    - Show pred.txt vs. text.txt in random order,
-#      with image reveal on re-evaluation.
-# --------------------------------------------------
-def turing_test():
-    case_index = st.session_state.last_case
-    if case_index >= total_cases:
-        st.markdown("### Turing Test complete. Thank you!")
-        if st.button("Return to Home"):
-            st.experimental_set_query_params(page="index")
-            st.session_state.page = "index"
-            st.rerun()
-        return
-    case_id = cases[case_index]
-    st.markdown(f"### Turing Test for Case: **{case_id}** (Case {case_index+1} of {total_cases})")
-    
-    # Display a global "Save Progress & Go Back" button
-    if st.button("Save Progress & Go Back", key=f"go_back_global_turing_{case_id}"):
-        st.experimental_set_query_params(page="index")
-        st.session_state.page = "index"
-        st.rerun()
-
-    # Load text files for reports
-    subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
-    ground_truth_report = load_text_file(os.path.join(subfolder, "text.txt"))
-    ai_report = load_text_file(os.path.join(subfolder, "pred.txt"))
-
-    # Determine assignment order for which report is labeled A/B.
-    assignments = st.session_state.get('assignments', {})
-    if str(case_index) in assignments:
-        assign_A = assignments[str(case_index)]
-    else:
-        assign_A = random.choice([True, False])
-        assignments[str(case_index)] = assign_A
-        st.session_state.assignments = assignments
-
-    if assign_A:
-        reportA_text = ai_report
-        reportB_text = ground_truth_report
-    else:
-        reportA_text = ground_truth_report
-        reportB_text = ai_report
-
-    st.markdown("#### Report A")
-    st.text_area("Report A", reportA_text, height=300, key=f"reportA_{case_id}")
-    st.markdown("#### Report B")
-    st.text_area("Report B", reportB_text, height=300, key=f"reportB_{case_id}")
-
-    # -------------------------------
-    # Initial Evaluation (no images)
-    # -------------------------------
-    if "initial_evaluation" not in st.session_state:
-        evaluation_choice = st.radio("Which report is ground truth?",
-                                     ("Report A", "Report B", "Not sure"),
-                                     key=f"choice_{case_id}")
-        if st.button("Submit Evaluation (Initial - without images)", key=f"submit_initial_{case_id}"):
-            st.session_state.initial_evaluation = evaluation_choice
-            st.session_state.turing_test_submitted = True
-            st.success(f"Initial evaluation recorded: {evaluation_choice}")
-            st.rerun()
-    else:
-        st.markdown("### Evaluation (After Viewing Images)")
-        # --------------------------------------
-        # Re-Evaluation after images are shown:
-        # --------------------------------------
-        st.markdown("#### Slice Images for Re-Evaluation")
-        display_slice_carousel(case_id)
-        
-        st.markdown(f"**Your initial evaluation was:** {st.session_state.initial_evaluation}")
-        st.markdown("Would you like to update your evaluation after viewing the images?")
-        update_choice = st.radio("Update Evaluation", 
-                                 ("Keep my initial evaluation", "Update my evaluation"),
-                                 key=f"update_choice_{case_id}")
-        if update_choice == "Update my evaluation":
-            new_evaluation = st.radio("Select your new evaluation", 
-                                      ("Report A", "Report B", "Not sure"),
-                                      key=f"new_choice_{case_id}")
-        else:
-            new_evaluation = st.session_state.initial_evaluation
-
-        if st.button("Record Final Evaluation", key=f"record_final_{case_id}"):
-            st.session_state.final_evaluation = new_evaluation
-            st.success(f"Final evaluation recorded: {st.session_state.final_evaluation}")
-
-        if st.button("Continue to Next Case", key=f"continue_{case_id}"):
-            # Optionally, you can save both the initial and final evaluations to file here.
-            st.session_state.last_case = case_index + 1
-            st.session_state.current_slice = 0
-            # Clear the evaluation responses so the next case starts fresh
-            del st.session_state.initial_evaluation
-            if "final_evaluation" in st.session_state:
-                del st.session_state.final_evaluation
-            st.session_state.turing_test_submitted = False
-            st.rerun()
-
-# --------------------------------------------------
-# 6. Standard Evaluation Page
-#    - Radiologist reviews reports, adds corrections,
-#      and (if available) evaluates a corrected report.
-# --------------------------------------------------
-def evaluate_case():
-    case_index = st.session_state.last_case
-    if case_index >= total_cases:
-        st.markdown("### Evaluation complete. Thank you!")
-        if st.button("Reset Evaluation"):
-            reset_evaluation()
+def display_carousel(category, case_id):
+    key = f"current_slice_{category}"
+    folder = os.path.join(BASE_IMAGE_DIR, case_id)
+    images = sorted(
+        os.path.join(folder, f)
+        for f in os.listdir(folder)
+        if f.lower().endswith((".png", ".jpg", ".jpeg"))
+    ) if os.path.exists(folder) else []
+    if not images:
+        st.info("No images.")
         return
 
-    case_id = cases[case_index]
-    st.markdown(f"### Evaluating Case: **{case_id}** (Case {case_index+1} of {total_cases})")
-    
-    # Global "Save Progress & Go Back" button
-    if st.button("Save Progress & Go Back", key=f"go_back_global_eval_{case_id}"):
-        st.experimental_set_query_params(page="index")
-        st.session_state.page = "index"
-        st.rerun()
+    idx = st.session_state[key]
+    idx = max(0, min(idx, len(images) - 1))
+    st.session_state[key] = idx
 
-    # Load text reports
-    subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
-    ground_truth_report = load_text_file(os.path.join(subfolder, "text.txt"))
-    ai_report = load_text_file(os.path.join(subfolder, "pred.txt"))
-
-    # Determine assignment order
-    assignments = st.session_state.get('assignments', {})
-    if str(case_index) in assignments:
-        assign_A = assignments[str(case_index)]
-    else:
-        assign_A = random.choice([True, False])
-        assignments[str(case_index)] = assign_A
-        st.session_state.assignments = assignments
-
-    if assign_A:
-        reportA_text = ai_report
-        reportB_text = ground_truth_report
-    else:
-        reportA_text = ground_truth_report
-        reportB_text = ai_report
-
-    st.markdown("#### Report A")
-    st.text_area("Report A", reportA_text, height=200, key=f"eval_reportA_{case_id}")
-    st.markdown("#### Report B")
-    st.text_area("Report B", reportB_text, height=200, key=f"eval_reportB_{case_id}")
-
-    # If an assembled corrected report exists (from organ-by-organ editing), show it.
-    assembled_report = st.session_state.get("assembled_report", "")
-    if assembled_report:
-        st.markdown("#### Corrected Report (from Organ-by-Organ Editing)")
-        st.text_area("Corrected Report", assembled_report, height=200, key=f"eval_corrected_{case_id}")
-        eval_options = ("Report A is better", "Report B is better", "Corrected Report is better", "Equivalent")
-    else:
-        eval_options = ("Report A is better", "Report B is better", "Equivalent")
-    evaluation_choice = st.radio("Select which report is best:", eval_options, key=f"eval_choice_{case_id}")
-
-    # Display images (always visible in evaluation)
-    st.markdown("#### Slice Images")
-    display_slice_carousel(case_id)
-
-    # Corrections / Annotations section
-    st.markdown("#### Corrections / Annotations")
-    detected_organs = [
-        "LIVER", "PORTAL VEIN", "INTRAHEPATIC IVC", "INTRAHEPATIC BILE DUCTS",
-        "COMMON BILE DUCT", "GALLBLADDER", "PANCREAS", "RIGHT KIDNEY",
-        "OTHER FINDINGS"
-    ]
-    st.write("Select the organs you want to correct:")
-    selected_organs = [organ for organ in detected_organs
-                       if st.checkbox(organ, key=f"organ_{case_id}_{organ}")]
-    if selected_organs:
-        st.write("Enter correction details:")
-        organ_to_correct = st.selectbox("Organ to correct", options=selected_organs, key=f"organ_select_{case_id}")
-        predefined_reasons = ["Measurement error", "Misinterpretation", "Missing finding", "Other"]
-        reason_choice = st.selectbox("Reason for disagreement", options=predefined_reasons, key=f"reason_choice_{case_id}")
-        final_reason = st.text_input("Specify other reason", key=f"reason_text_{case_id}") if reason_choice == "Other" else reason_choice
-        correction_text = st.text_area("Correction details", key=f"correction_text_{case_id}")
-        if st.button("Add Correction", key=f"add_correction_{case_id}"):
-            new_correction = {
-                "case_id": case_id,
-                "organ": organ_to_correct,
-                "reason": final_reason,
-                "details": correction_text
-            }
-            st.session_state["corrections"].append(new_correction)
-            st.success("Correction added!")
+    c1, c2, c3 = st.columns([1, 8, 1])
+    with c1:
+        if st.button("⟨ Prev", key=f"prev_{category}_{case_id}") and idx > 0:
+            st.session_state[key] -= 1
+            st.rerun()
+    with c2:
+        st.image(images[idx], width=500)
+        st.caption(f"Slice {idx+1} / {len(images)}")
+    with c3:
+        if st.button("Next ⟩", key=f"next_{category}_{case_id}") and idx < len(images)-1:
+            st.session_state[key] += 1
             st.rerun()
 
-    # Display existing corrections for this case
-    case_corrections = [c for c in st.session_state["corrections"] if c["case_id"] == case_id]
-    if case_corrections:
-        st.markdown("#### Current Corrections for This Case")
-        corrections_df = pd.DataFrame(case_corrections)
-        st.table(corrections_df.drop(columns=["case_id"]))
-
-    # Submit button: save annotations and evaluation choice
-    if st.button("Submit All Corrections", key=f"submit_corrections_{case_id}"):
-        try:
-            # Optionally, evaluation_choice can be saved along with annotations
-            save_annotations(case_id, case_corrections)
-            st.success(f"Annotations saved. Evaluation: {evaluation_choice}")
-            # Clear corrections for this case
-            st.session_state["corrections"] = [c for c in st.session_state["corrections"] if c["case_id"] != case_id]
-            st.session_state.last_case = case_index + 1
-            st.session_state.current_slice = 0
-            st.rerun()
-        except Exception as e:
-            st.error(f"Failed to save annotations: {e}")
-
 # --------------------------------------------------
-# 7. AI Edit Page (optional)
-#    - Radiologist can freely edit the AI report or use organ-by-organ editing.
-# --------------------------------------------------
-def ai_edit():
-    case_index = st.session_state.last_case
-    if case_index >= total_cases:
-        st.markdown("### All cases have been edited. Thank you!")
-        if st.button("Return to Home"):
-            st.experimental_set_query_params(page="index")
-            st.session_state.page = "index"
-            st.rerun()
-        return
-    case_id = cases[case_index]
-    subfolder = os.path.join(BASE_IMAGE_DIR, case_id)
-    ai_report = load_text_file(os.path.join(subfolder, "pred.txt"))
-    st.markdown(f"### AI Report Editing for Case: **{case_id}** (Case {case_index+1} of {total_cases})")
-    
-    # Global "Save Progress & Go Back" button
-    if st.button("Save Progress & Go Back", key=f"go_back_global_ai_{case_id}"):
-        st.experimental_set_query_params(page="index")
-        st.session_state.page = "index"
-        st.rerun()
-    
-    st.markdown("#### AI Report")
-    st.text_area("AI Report", ai_report, height=200, key=f"ai_report_overview_{case_id}")
-    
-    # Select editing mode: free editing or organ-by-organ editing
-    edit_mode = st.radio("Choose Editing Mode:", ("Free Editing", "Organ-by-Organ Editing"), key=f"edit_mode_{case_id}")
-    
-    if edit_mode == "Free Editing":
-        edited_report = st.text_area("Edit the AI-generated report", ai_report, height=300, key=f"ai_edit_{case_id}")
-        final_report = edited_report  # Free editing output
-    else:
-        st.markdown("### Organ-by-Organ Editing Navigation")
-        st.markdown("**Step 1: Select Organs for Correction**")
-        detected_organs = [
-            "LIVER", "PORTAL VEIN", "INTRAHEPATIC IVC", "INTRAHEPATIC BILE DUCTS", 
-            "COMMON BILE DUCT", "GALLBLADDER", "PANCREAS", "RIGHT KIDNEY", "OTHER FINDINGS"
-        ]
-        st.write("Please select the organs you wish to correct:")
-        selected_organs = [organ for organ in detected_organs if st.checkbox(organ, key=f"organ_{organ}_{case_id}")]
-        if selected_organs:
-            st.markdown("**Step 2: Provide Correction Details for the Selected Organ**")
-            organ_to_correct = st.selectbox("Select an organ to correct", options=selected_organs, key=f"organ_select_{case_id}")
-            predefined_reasons = ["Measurement error", "Misinterpretation", "Missing finding", "Other"]
-            reason_choice = st.selectbox("Select the reason for the correction", options=predefined_reasons, key=f"reason_choice_{case_id}")
-            final_reason = st.text_input("If Other, please specify", key=f"reason_text_{case_id}") if reason_choice == "Other" else reason_choice
-            correction_text = st.text_area("Enter the correction details", key=f"correction_text_{case_id}")
-            if st.button("Add Correction", key=f"add_correction_{case_id}"):
-                new_correction = {
-                    "organ": organ_to_correct,
-                    "reason": final_reason,
-                    "details": correction_text
-                }
-                if "corrections" not in st.session_state:
-                    st.session_state["corrections"] = []
-                st.session_state["corrections"].append(new_correction)
-                st.success("Correction added!")
-                st.rerun()
-            st.markdown("**Step 3: Review Your Corrections**")
-            if st.session_state.get("corrections"):
-                corrections_df = pd.DataFrame(st.session_state["corrections"])
-                st.table(corrections_df)
-                if st.button("Assemble Corrected Report", key=f"assemble_report_{case_id}"):
-                    assembled = "Organ-by-Organ Corrected Report:\n\n"
-                    for corr in st.session_state["corrections"]:
-                        assembled += f"{corr['organ']}: {corr['reason']} - {corr['details']}\n\n"
-                    st.session_state["assembled_report"] = assembled
-                    st.success("Corrected report assembled!")
-                    st.rerun()
-        final_report = st.session_state.get("assembled_report", "")
-    
-    if st.button("Submit Edited Report", key=f"submit_edit_{case_id}"):
-        st.success("Edited report submitted.")
-        # Optionally, save the final report as needed.
-        st.session_state.last_case = case_index + 1
-        st.session_state.current_slice = 0
-        st.rerun()
-
-# --------------------------------------------------
-# 8. Landing Page
+# Pages
 # --------------------------------------------------
 def index():
-    last_case = st.session_state.last_case
-    if last_case >= total_cases:
-        st.markdown("### All selected cases have been evaluated. Thank you!")
-        if st.button("Reset Evaluation"):
-            reset_evaluation()
+    st.title("Survey App")
+    if total_cases == 0:
+        st.error("No cases found.")
+        return
+
+    # Show progress for each workflow :contentReference[oaicite:8]{index=8}
+    st.markdown("### Your Progress")
+    st.markdown(f"- **Turing Test**: Case {st.session_state.last_case_turing+1}/{total_cases}")
+    st.markdown(f"- **Standard Eval**: Case {st.session_state.last_case_standard+1}/{total_cases}")
+    st.markdown(f"- **AI Edit**: Case {st.session_state.last_case_ai+1}/{total_cases}")
+
+    st.markdown("---")
+    c1, c2, c3, c4 = st.columns(4)
+    if c1.button("Turing Test"):
+        st.experimental_set_query_params(page="turing_test")
+        st.session_state.page = "turing_test"
+        st.rerun()
+    if c2.button("Standard Eval"):
+        st.experimental_set_query_params(page="standard_eval")
+        st.session_state.page = "standard_eval"
+        st.rerun()
+    if c3.button("AI Report Edit"):
+        st.experimental_set_query_params(page="ai_edit")
+        st.session_state.page = "ai_edit"
+        st.rerun()
+    if c4.button("View All Results"):
+        st.experimental_set_query_params(page="view_results")
+        st.session_state.page = "view_results"
+        st.rerun()
+
+def turing_test():
+    idx = st.session_state.last_case_turing
+    if idx >= total_cases:
+        st.success("Turing Test complete!")
+        if st.button("Home"):
+            st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+        return
+    case = cases[idx]
+    st.header(f"Turing Test: {case} ({idx+1}/{total_cases})")
+
+    if st.button("Save & Back"):
+        prog = {
+            "last_case": idx,
+            "assignments": st.session_state.assignments_turing,
+            "initial_eval": st.session_state.initial_eval_turing,
+            "final_eval": st.session_state.final_eval_turing,
+            "viewed_images": st.session_state.viewed_images_turing
+        }
+        save_progress("turing_test", prog)
+        st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+
+    # Load & display A vs B
+    gt = load_text(os.path.join(BASE_IMAGE_DIR, case, "text.txt"))
+    ai = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
+    assigns = st.session_state.assignments_turing
+    if case not in assigns:
+        assigns[case] = random.choice([True, False])
+        st.session_state.assignments_turing = assigns
+    A, B = (ai, gt) if assigns[case] else (gt, ai)
+    st.subheader("Report A"); st.text_area("A", A, height=200, key=f"A_t_{case}")
+    st.subheader("Report B"); st.text_area("B", B, height=200, key=f"B_t_{case}")
+
+    # Initial evaluation
+    if st.session_state.initial_eval_turing is None:
+        choice = st.radio("Which is GT?", ["A","B","Not sure"], key=f"ch_t_{case}", index=2)
+        if st.button("Submit Initial"):
+            st.session_state.initial_eval_turing = choice
+            st.session_state.viewed_images_turing = True
+            st.success("Recorded initial eval.")
+            st.rerun()
+
+    # After images
+    if st.session_state.viewed_images_turing:
+        st.markdown("#### Images")
+        display_carousel("turing", case)
+        st.markdown(f"**Initial Eval:** {st.session_state.initial_eval_turing}")
+        up = st.radio("Keep or Update?", ["Keep","Update"], key=f"up_t_{case}")
+        final = st.session_state.initial_eval_turing
+        if up=="Update":
+            final = st.radio("New choice:", ["A","B","Not sure"], key=f"new_t_{case}", index=2)
+        st.session_state.final_eval_turing = final
+        if st.button("Finalize & Next"):
+            st.session_state.last_case_turing += 1
+            st.session_state.current_slice_turing = 0
+            st.session_state.initial_eval_turing = None
+            st.session_state.final_eval_turing = None
+            st.session_state.viewed_images_turing = False
+            st.rerun()
+
+def evaluate_case():
+    idx = st.session_state.last_case_standard
+    if idx >= total_cases:
+        st.success("Standard Eval complete!")
+        if st.button("Home"):
+            st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+        return
+    case = cases[idx]
+    st.header(f"Standard Eval: {case} ({idx+1}/{total_cases})")
+
+    if st.button("Save & Back"):
+        prog = {
+            "last_case": idx,
+            "assignments": st.session_state.assignments_standard,
+            "corrections": st.session_state.corrections_standard
+        }
+        save_progress("standard_evaluation", prog)
+        st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+
+    # A vs B
+    gt = load_text(os.path.join(BASE_IMAGE_DIR, case, "text.txt"))
+    ai = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
+    assigns = st.session_state.assignments_standard
+    if case not in assigns:
+        assigns[case] = random.choice([True, False])
+        st.session_state.assignments_standard = assigns
+    A, B = (ai, gt) if assigns[case] else (gt, ai)
+    st.subheader("Report A"); st.text_area("A", A, height=150, key=f"A_s_{case}")
+    st.subheader("Report B"); st.text_area("B", B, height=150, key=f"B_s_{case}")
+    st.markdown("#### Images"); display_carousel("standard", case)
+
+    # Corrections
+    organ = st.selectbox("Organ", [""]+["LIVER","PANCREAS","KIDNEY","OTHER"], key=f"org_s_{case}")
+    reason = st.text_input("Reason", key=f"rsn_s_{case}")
+    details = st.text_area("Details", key=f"dtl_s_{case}")
+    if st.button("Add Corr") and organ:
+        st.session_state.corrections_standard.append({
+            "case_id": case, "organ": organ,
+            "reason": reason, "details": details
+        })
+        st.success("Added correction"); st.rerun()
+
+    cors = [c for c in st.session_state.corrections_standard if c["case_id"]==case]
+    if cors:
+        st.table(pd.DataFrame(cors).drop(columns=["case_id"]))
+
+    choice = st.radio("Best report?", ["A","B","Corrected","Equal"], key=f"ch_s_{case}")
+    if st.button("Submit & Next"):
+        if cors:
+            save_annotations(case, cors)
+        st.session_state.corrections_standard = [c for c in st.session_state.corrections_standard if c["case_id"]!=case]
+        st.session_state.last_case_standard += 1
+        st.session_state.current_slice_standard = 0
+        st.rerun()
+
+def ai_edit():
+    idx = st.session_state.last_case_ai
+    if idx >= total_cases:
+        st.success("AI Edit complete!")
+        if st.button("Home"):
+            st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+        return
+    case = cases[idx]
+    st.header(f"AI Edit: {case} ({idx+1}/{total_cases})")
+
+    if st.button("Save & Back"):
+        prog = {
+            "last_case": idx,
+            "assembled": st.session_state.assembled_ai,
+            "corrections": st.session_state.corrections_ai
+        }
+        save_progress("ai_edit", prog)
+        st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+
+    orig = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
+    st.subheader("Original AI Report"); st.text_area("orig", orig, height=150, disabled=True)
+    st.markdown("#### Images"); display_carousel("ai", case)
+
+    mode = st.radio("Mode", ["Free","Organ"], key=f"md_ai_{case}")
+    if mode=="Free":
+        text = st.session_state.assembled_ai or orig
+        new = st.text_area("Edit", text, height=200, key=f"free_ai_{case}")
+        st.session_state.assembled_ai = new
     else:
-        st.markdown("### Welcome to the Survey")
-        st.markdown(f"We have **{total_cases}** case(s) to evaluate.")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Start Turing Test Evaluation"):
-                st.experimental_set_query_params(page="turing_test")
-                st.session_state.page = "turing_test"
-                st.rerun()
-        with col2:
-            if st.button("Start AI Report Editing"):
-                st.experimental_set_query_params(page="ai_edit")
-                st.session_state.page = "ai_edit"
-                st.rerun()
-        with col3:
-            if st.button("Start Standard Evaluation"):
-                st.experimental_set_query_params(page="evaluate_case")
-                st.session_state.page = "evaluate_case"
-                st.rerun()
+        organ = st.selectbox("Organ", [""]+["LIVER","PANCREAS","KIDNEY","OTHER"], key=f"org_ai_{case}")
+        reason = st.text_input("Reason", key=f"rsn_ai_{case}")
+        details = st.text_area("Details", key=f"dtl_ai_{case}")
+        if st.button("Add Corr AI") and organ:
+            st.session_state.corrections_ai.append({
+                "case_id": case, "organ": organ,
+                "reason": reason, "details": details
+            })
+            st.success("Added"); st.rerun()
+
+        cors = [c for c in st.session_state.corrections_ai if c["case_id"]==case]
+        if cors:
+            st.table(pd.DataFrame(cors).drop(columns=["case_id"]))
+            if st.button("Assemble"):
+                txt = "\n".join(f"- {c['organ']}: {c['reason']} — {c['details']}" for c in cors)
+                st.session_state.assembled_ai = txt
+                st.success("Assembled"); st.rerun()
+
+    if st.button("Submit & Next"):
+        st.session_state.corrections_ai = [c for c in st.session_state.corrections_ai if c["case_id"]!=case]
+        st.session_state.assembled_ai = ""
+        st.session_state.last_case_ai += 1
+        st.session_state.current_slice_ai = 0
+        st.rerun()
+        
+
+def view_all_results():
+    st.title("All Saved Results")
+    if st.button("Home"):
+        st.session_state.page = "index"
+        st.experimental_set_query_params(page="index")
+        st.rerun()
+
+    # 1. Scan for all progress CSVs
+    filepaths = glob.glob("logs/*_progress.csv") 
+    # 2. Extract session IDs
+    session_ids = {
+        # Option A: simple split
+        os.path.basename(fp).split("_")[1]
+        for fp in filepaths
+    }
+    # 3. Sort session IDs
+    session_list = sorted(session_ids)           
+
+    # 4. Display all historical session IDs
+    st.subheader("All Sessions with Saved Progress")
+    for sid in session_list:
+        st.write(f"- `{sid}`")
+
+    # 5. Then display the logs as before
+    st.subheader("Turing Test Logs")
+    for fp in sorted(glob.glob("logs/turing_test_*_progress.csv")):
+        st.markdown(f"**{os.path.basename(fp)}**")
+        st.dataframe(pd.read_csv(fp))
+
+    st.subheader("Standard Eval Logs")
+    for fp in sorted(glob.glob("logs/standard_evaluation_*_progress.csv")):
+        st.markdown(f"**{os.path.basename(fp)}**")
+        st.dataframe(pd.read_csv(fp))
+
+    st.subheader("AI Edit Logs")
+    for fp in sorted(glob.glob("logs/ai_edit_*_progress.csv")):
+        st.markdown(f"**{os.path.basename(fp)}**")
+        st.dataframe(pd.read_csv(fp))
+
 
 # --------------------------------------------------
-# 9. Main Navigation
+# Main Router
 # --------------------------------------------------
-if st.session_state.page == "index":
-    index()
-elif st.session_state.page == "evaluate_case":
-    evaluate_case()
-elif st.session_state.page == "turing_test":
+page = st.session_state.page
+if page == "turing_test":
     turing_test()
-elif st.session_state.page == "ai_edit":
+elif page == "standard_eval":
+    evaluate_case()
+elif page == "ai_edit":
     ai_edit()
+elif page == "view_results":
+    view_all_results()
 else:
     index()
-
-
-# API Key: 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
