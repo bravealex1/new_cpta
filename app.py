@@ -23,7 +23,6 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     c = conn.cursor()
-    # Table for progress logs
     c.execute('''
     CREATE TABLE IF NOT EXISTS progress_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +31,6 @@ def init_db():
         progress_json TEXT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
-    # Table for case annotations
     c.execute('''
     CREATE TABLE IF NOT EXISTS annotations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,10 +56,8 @@ st.sidebar.markdown(f"**Session ID:** `{st.session_state.session_id}`")
 
 # --------------------------------------------------
 # 3. Utility: Save Progress per Category & Session
-#    (writes JSON, CSV, and SQLite)
 # --------------------------------------------------
 def save_progress(category: str, progress: dict):
-    # filesystem logs
     os.makedirs(DB_DIR, exist_ok=True)
     sid = st.session_state.session_id
 
@@ -86,16 +82,13 @@ def save_progress(category: str, progress: dict):
 
 # --------------------------------------------------
 # 4. Utility: Save Annotations per Case
-#    (writes JSON and SQLite)
 # --------------------------------------------------
 def save_annotations(case_id: str, annotations: list):
     os.makedirs("evaluations", exist_ok=True)
-    # JSON export
     path = os.path.join("evaluations", f"{case_id}_annotations.json")
     with open(path, "w") as f:
         json.dump(annotations, f, indent=2)
 
-    # SQLite storage
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -446,7 +439,12 @@ def view_all_results():
                  df["progress_json"].apply(json.loads).apply(pd.Series)],
                 axis=1
             )
-            st.dataframe(df_expanded)
+            # convert last_case → Case (1-indexed) and drop last_case
+            df_expanded["Case"] = df_expanded["last_case"] + 1
+            df_display = df_expanded.drop(columns=["last_case"])
+            # reorder so Case first
+            cols = ["Case"] + [c for c in df_display.columns if c != "Case"]
+            st.dataframe(df_display[cols])
         else:
             st.write("— no entries —")
 
@@ -465,7 +463,11 @@ def view_all_results():
              df_ai["progress_json"].apply(json.loads).apply(pd.Series)],
             axis=1
         )
-        st.dataframe(df_ai_expanded)
+        # convert last_case → Case and drop last_case
+        df_ai_expanded["Case"] = df_ai_expanded["last_case"] + 1
+        df_ai_display = df_ai_expanded.drop(columns=["last_case"])
+        cols_ai = ["Case"] + [c for c in df_ai_display.columns if c != "Case"]
+        st.dataframe(df_ai_display[cols_ai])
     else:
         st.write("— no AI edit logs found —")
 
