@@ -17,26 +17,25 @@ DB_PATH = os.path.join(DB_DIR, "logs.db")
 
 def get_db_connection():
     os.makedirs(DB_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    return conn
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 def init_db():
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('''
     CREATE TABLE IF NOT EXISTS progress_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT,
-        category TEXT,
-        progress_json TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT,
+      category TEXT,
+      progress_json TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
     c.execute('''
     CREATE TABLE IF NOT EXISTS annotations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        case_id TEXT,
-        annotations_json TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_id TEXT,
+      annotations_json TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
     conn.commit()
     conn.close()
@@ -61,7 +60,7 @@ st.sidebar.markdown(f"**Session ID:** `{st.session_state.session_id}`")
 def save_progress(category: str, progress: dict):
     sid = st.session_state.session_id
 
-    # --- JSON: append to list ---
+    # JSON
     os.makedirs(DB_DIR, exist_ok=True)
     jpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.json")
     if os.path.exists(jpath):
@@ -75,7 +74,7 @@ def save_progress(category: str, progress: dict):
     with open(jpath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    # --- CSV: append row ---
+    # CSV
     cpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.csv")
     df = pd.DataFrame([progress])
     if os.path.exists(cpath):
@@ -83,7 +82,7 @@ def save_progress(category: str, progress: dict):
     else:
         df.to_csv(cpath, index=False)
 
-    # --- SQLite: insert new log ---
+    # SQLite
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -100,8 +99,6 @@ def save_progress(category: str, progress: dict):
 def save_annotations(case_id: str, annotations: list):
     os.makedirs("evaluations", exist_ok=True)
     path = os.path.join("evaluations", f"{case_id}_annotations.json")
-
-    # --- JSON: append to list ---
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -113,7 +110,6 @@ def save_annotations(case_id: str, annotations: list):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    # --- SQLite: insert as a new record ---
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -160,7 +156,7 @@ elif "page" not in st.session_state:
     st.session_state.page = "index"
 
 BASE_IMAGE_DIR = "2D_Image"
-cases = sorted(d for d in os.listdir(BASE_IMAGE_DIR) if os.path.isdir(os.path.join(BASE_IMAGE_DIR, d)))
+cases = sorted([d for d in os.listdir(BASE_IMAGE_DIR) if os.path.isdir(os.path.join(BASE_IMAGE_DIR, d))])
 total_cases = len(cases)
 
 # --------------------------------------------------
@@ -175,46 +171,43 @@ def display_carousel(category, case_id):
     if not os.path.exists(folder):
         st.info("No images.")
         return
-    images = sorted(
+    images = sorted([
         os.path.join(folder, f)
         for f in os.listdir(folder)
         if f.lower().endswith((".png", ".jpg", ".jpeg"))
-    )
+    ])
     if not images:
         st.info("No images.")
         return
+
     idx = st.session_state[key]
-    idx = max(0, min(idx, len(images) - 1))
+    idx = max(0, min(idx, len(images)-1))
     st.session_state[key] = idx
 
-    c1, c2, c3 = st.columns([1, 8, 1])
+    c1, c2, c3 = st.columns([1,8,1])
     with c1:
-        if st.button("⟨ Prev", key=f"prev_{category}_{case_id}") and idx > 0:
-            st.session_state[key] -= 1
-            st.rerun()
+        if st.button("⟨ Prev", key=f"prev_{category}_{case_id}") and idx>0:
+            st.session_state[key] -= 1; st.rerun()
     with c2:
         st.image(images[idx], width=500)
-        st.caption(f"Slice {idx+1} / {len(images)}")
+        st.caption(f"Slice {idx+1}/{len(images)}")
     with c3:
-        if st.button("Next ⟩", key=f"next_{category}_{case_id}") and idx < len(images)-1:
-            st.session_state[key] += 1
-            st.rerun()
+        if st.button("Next ⟩", key=f"next_{category}_{case_id}") and idx<len(images)-1:
+            st.session_state[key] += 1; st.rerun()
 
 # --------------------------------------------------
-# 8. Pages (index, turing_test, evaluate_case, ai_edit, view_all_results)
-#    — unchanged except view_all_results already displays all cases
+# 8. Pages
 # --------------------------------------------------
 def index():
     st.title("Survey App")
-    if total_cases == 0:
-        st.error("No cases found.")
-        return
+    if total_cases==0:
+        st.error("No cases found."); return
     st.markdown("### Your Progress")
     st.markdown(f"- **Turing Test**: Case {st.session_state.last_case_turing+1}/{total_cases}")
     st.markdown(f"- **Standard Eval**: Case {st.session_state.last_case_standard+1}/{total_cases}")
     st.markdown(f"- **AI Edit**: Case {st.session_state.last_case_ai+1}/{total_cases}")
     st.markdown("---")
-    c1, c2, c3, c4 = st.columns(4)
+    c1,c2,c3,c4 = st.columns(4)
     if c1.button("Turing Test"):
         st.experimental_set_query_params(page="turing_test"); st.session_state.page="turing_test"; st.rerun()
     if c2.button("Standard Eval"):
@@ -226,7 +219,7 @@ def index():
 
 def turing_test():
     idx = st.session_state.last_case_turing
-    if idx >= total_cases:
+    if idx>=total_cases:
         st.success("Turing Test complete!")
         if st.button("Home"):
             st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
@@ -235,6 +228,7 @@ def turing_test():
     st.header(f"Turing Test: {case} ({idx+1}/{total_cases})")
     if st.button("Save & Back"):
         prog = {
+            "case_id": case,
             "last_case": idx,
             "assignments": st.session_state.assignments_turing,
             "initial_eval": st.session_state.initial_eval_turing,
@@ -250,15 +244,15 @@ def turing_test():
     if case not in assigns:
         assigns[case] = random.choice([True, False])
         st.session_state.assignments_turing = assigns
-    A, B = (ai, gt) if assigns[case] else (gt, ai)
+    A,B = (ai,gt) if assigns[case] else (gt,ai)
     st.subheader("Report A"); st.text_area("A", A, height=200, key=f"A_t_{case}")
     st.subheader("Report B"); st.text_area("B", B, height=200, key=f"B_t_{case}")
 
     if st.session_state.initial_eval_turing is None:
         choice = st.radio("Which is GT?", ["A","B","Not sure"], key=f"ch_t_{case}", index=2)
         if st.button("Submit Initial"):
-            st.session_state.initial_eval_turing = choice
-            st.session_state.viewed_images_turing = True
+            st.session_state.initial_eval_turing=choice
+            st.session_state.viewed_images_turing=True
             st.success("Recorded initial eval."); st.rerun()
 
     if st.session_state.viewed_images_turing:
@@ -271,6 +265,7 @@ def turing_test():
         st.session_state.final_eval_turing = final
         if st.button("Finalize & Next"):
             prog = {
+                "case_id": case,
                 "last_case": idx,
                 "assignments": st.session_state.assignments_turing,
                 "initial_eval": st.session_state.initial_eval_turing,
@@ -287,7 +282,7 @@ def turing_test():
 
 def evaluate_case():
     idx = st.session_state.last_case_standard
-    if idx >= total_cases:
+    if idx>=total_cases:
         st.success("Standard Eval complete!")
         if st.button("Home"):
             st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
@@ -296,6 +291,7 @@ def evaluate_case():
     st.header(f"Standard Eval: {case} ({idx+1}/{total_cases})")
     if st.button("Save & Back"):
         prog = {
+            "case_id": case,
             "last_case": idx,
             "assignments": st.session_state.assignments_standard,
             "corrections": st.session_state.corrections_standard
@@ -307,19 +303,19 @@ def evaluate_case():
     ai = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
     assigns = st.session_state.assignments_standard
     if case not in assigns:
-        assigns[case] = random.choice([True, False])
-        st.session_state.assignments_standard = assigns
-    A, B = (ai, gt) if assigns[case] else (gt, ai)
-    st.subheader("Report A"); st.text_area("A", A, height=150, key=f"A_s_{case}")
-    st.subheader("Report B"); st.text_area("B", B, height=150, key=f"B_s_{case}")
-    st.markdown("#### Images"); display_carousel("standard", case)
+        assigns[case] = random.choice([True,False])
+        st.session_state.assignments_standard=assigns
+    A,B = (ai,gt) if assigns[case] else (gt,ai)
+    st.subheader("Report A"); st.text_area("A",A,height=150,key=f"A_s_{case}")
+    st.subheader("Report B"); st.text_area("B",B,height=150,key=f"B_s_{case}")
+    st.markdown("#### Images"); display_carousel("standard",case)
 
-    organ = st.selectbox("Organ", [""]+["LIVER","PANCREAS","KIDNEY","OTHER"], key=f"org_s_{case}")
-    reason = st.text_input("Reason", key=f"rsn_s_{case}")
-    details = st.text_area("Details", key=f"dtl_s_{case}")
+    organ = st.selectbox("Organ",[""]+["LIVER","PANCREAS","KIDNEY","OTHER"],key=f"org_s_{case}")
+    reason = st.text_input("Reason",key=f"rsn_s_{case}")
+    details = st.text_area("Details",key=f"dtl_s_{case}")
     if st.button("Add Corr") and organ:
         st.session_state.corrections_standard.append({
-            "case_id": case, "organ": organ, "reason": reason, "details": details
+            "case_id":case,"organ":organ,"reason":reason,"details":details
         })
         st.success("Added correction"); st.rerun()
 
@@ -327,10 +323,10 @@ def evaluate_case():
     if cors:
         st.table(pd.DataFrame(cors).drop(columns=["case_id"]))
 
-    choice = st.radio("Best report?", ["A","B","Corrected","Equal"], key=f"ch_s_{case}")
+    choice = st.radio("Best report?",["A","B","Corrected","Equal"],key=f"ch_s_{case}")
     if st.button("Submit & Next"):
         if cors:
-            save_annotations(case, cors)
+            save_annotations(case,cors)
         st.session_state.corrections_standard = [c for c in st.session_state.corrections_standard if c["case_id"]!=case]
         st.session_state.last_case_standard+=1
         st.session_state.current_slice_standard=0
@@ -338,16 +334,19 @@ def evaluate_case():
 
 def ai_edit():
     idx = st.session_state.last_case_ai
-    if idx >= total_cases:
+    if idx>=total_cases:
         st.success("AI Edit complete!")
         if st.button("Home"):
             st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
         return
     case = cases[idx]
     st.header(f"AI Edit: {case} ({idx+1}/{total_cases})")
+
+    # -- Save & Back logs current work --
     if st.button("Save & Back"):
         prog = {
-            "last_case": idx,
+            "case_id": case,
+            "mode": st.session_state.get("last_mode_ai", "Free"),
             "assembled": st.session_state.assembled_ai,
             "corrections": st.session_state.corrections_ai
         }
@@ -355,14 +354,18 @@ def ai_edit():
         st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
 
     orig = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
-    st.subheader("Original AI Report"); st.text_area("orig", orig, height=150, disabled=True)
+    st.subheader("Original AI Report")
+    st.text_area("orig", orig, height=150, disabled=True)
     st.markdown("#### Images"); display_carousel("ai", case)
 
     mode = st.radio("Mode", ["Free","Organ"], key=f"md_ai_{case}")
+    # remember last selected mode
+    st.session_state["last_mode_ai"] = mode
+
     if mode=="Free":
         text = st.session_state.assembled_ai or orig
         new = st.text_area("Edit", text, height=200, key=f"free_ai_{case}")
-        st.session_state.assembled_ai=new
+        st.session_state.assembled_ai = new
     else:
         organ = st.selectbox("Organ", [""]+["LIVER","PANCREAS","KIDNEY","OTHER"], key=f"org_ai_{case}")
         reason = st.text_input("Reason", key=f"rsn_ai_{case}")
@@ -378,14 +381,24 @@ def ai_edit():
             st.table(pd.DataFrame(cors).drop(columns=["case_id"]))
             if st.button("Assemble"):
                 txt = "\n".join(f"- {c['organ']}: {c['reason']} — {c['details']}" for c in cors)
-                st.session_state.assembled_ai=txt
+                st.session_state.assembled_ai = txt
                 st.success("Assembled"); st.rerun()
 
+    # -- Submit & Next now logs mode + edits every time --
     if st.button("Submit & Next"):
+        prog = {
+            "case_id": case,
+            "mode": mode,
+            "assembled": st.session_state.assembled_ai,
+            "corrections": st.session_state.corrections_ai
+        }
+        save_progress("ai_edit", prog)
+
+        # clear for next case
         st.session_state.corrections_ai = [c for c in st.session_state.corrections_ai if c["case_id"]!=case]
         st.session_state.assembled_ai = ""
-        st.session_state.last_case_ai+=1
-        st.session_state.current_slice_ai=0
+        st.session_state.last_case_ai += 1
+        st.session_state.current_slice_ai = 0
         st.rerun()
 
 def view_all_results():
@@ -402,36 +415,44 @@ def view_all_results():
         st.write(f"- {sid}")
 
     # Turing & Standard
-    for cat, label in [("turing_test","Turing Test Logs"), ("standard_evaluation","Standard Eval Logs")]:
+    for cat,label in [("turing_test","Turing Test Logs"),("standard_evaluation","Standard Eval Logs")]:
         st.subheader(label)
         df = pd.read_sql_query(
             "SELECT session_id, progress_json, timestamp FROM progress_logs WHERE category=? ORDER BY timestamp",
             conn, params=(cat,)
         )
         if not df.empty:
-            df_expanded = pd.concat([df.drop(columns=["progress_json"]),
-                                     df["progress_json"].apply(json.loads).apply(pd.Series)], axis=1)
-            df_expanded["Case"] = df_expanded["last_case"]+1
-            df_display = df_expanded.drop(columns=["last_case"])
-            cols = ["Case"] + [c for c in df_display.columns if c!="Case"]
-            st.dataframe(df_display[cols])
+            df_expanded = pd.concat([
+                df.drop(columns=["progress_json"]),
+                df["progress_json"].apply(json.loads).apply(pd.Series)
+            ], axis=1)
+            # display Case if present
+            if "last_case" in df_expanded.columns:
+                df_expanded["Case"] = df_expanded["last_case"]+1
+                df_expanded = df_expanded.drop(columns=["last_case"])
+                cols = ["Case"] + [c for c in df_expanded.columns if c!="Case"]
+                st.dataframe(df_expanded[cols])
+            else:
+                st.dataframe(df_expanded)
         else:
             st.write("— no entries —")
 
-    # AI Report Edit (all entries)
+    # AI Report Edit Logs
     st.subheader("AI Report Edit Logs")
     df_ai = pd.read_sql_query(
         "SELECT session_id, progress_json, timestamp FROM progress_logs WHERE category='ai_edit' ORDER BY timestamp",
         conn
     )
     if not df_ai.empty:
-        df_ai_expanded = pd.concat([df_ai.drop(columns=["progress_json"]),
-                                    df_ai["progress_json"].apply(json.loads).apply(pd.Series)],
-                                   axis=1)
-        df_ai_expanded["Case"] = df_ai_expanded["last_case"]+1
-        df_ai_display = df_ai_expanded.drop(columns=["last_case"])
-        cols_ai = ["Case"] + [c for c in df_ai_display.columns if c!="Case"]
-        st.dataframe(df_ai_display[cols_ai])
+        df_ai_expanded = pd.concat([
+            df_ai.drop(columns=["progress_json"]),
+            df_ai["progress_json"].apply(json.loads).apply(pd.Series)
+        ], axis=1)
+        # show case if assembled or corrections exist
+        if "case_id" in df_ai_expanded.columns:
+            st.dataframe(df_ai_expanded)
+        else:
+            st.dataframe(df_ai_expanded)
     else:
         st.write("— no AI edit logs found —")
 
