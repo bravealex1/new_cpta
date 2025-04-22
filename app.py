@@ -6,47 +6,107 @@ import uuid
 import random
 import pandas as pd
 import glob
+import sqlite3
+from datetime import datetime
 
 # --------------------------------------------------
-# 0. Generate & Store Unique Session ID
+# 0. Database Setup for Queryable Logs
+# --------------------------------------------------
+DB_DIR = "logs"
+DB_PATH = os.path.join(DB_DIR, "logs.db")
+
+def get_db_connection():
+    os.makedirs(DB_DIR, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    c = conn.cursor()
+    # Table for progress logs
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS progress_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT,
+        category TEXT,
+        progress_json TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )''')
+    # Table for case annotations
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS annotations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        case_id TEXT,
+        annotations_json TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# --------------------------------------------------
+# 1. Generate & Store Unique Session ID
 # --------------------------------------------------
 if "session_id" not in st.session_state:
-    # Version 4 UUID gives a random 128‑bit ID
     st.session_state.session_id = str(uuid.uuid4())
 
 # --------------------------------------------------
-# Sidebar: Display Session ID
+# 2. Sidebar: Display Session ID
 # --------------------------------------------------
 st.sidebar.markdown(f"**Session ID:** `{st.session_state.session_id}`")
 
 # --------------------------------------------------
-# Utility: Save Progress per Category & Session
+# 3. Utility: Save Progress per Category & Session
+#    (writes JSON, CSV, and SQLite)
 # --------------------------------------------------
 def save_progress(category: str, progress: dict):
-    # Ensure logs directory exists (creates nested dirs if needed)
-    os.makedirs("logs", exist_ok=True)
+    # --- filesystem logs ---
+    os.makedirs(DB_DIR, exist_ok=True)
     sid = st.session_state.session_id
 
     # JSON
-    jpath = os.path.join("logs", f"{category}_{sid}_progress.json")
+    jpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.json")
     with open(jpath, "w") as f:
         json.dump(progress, f, indent=2)
 
     # CSV (overwrite latest)
-    cpath = os.path.join("logs", f"{category}_{sid}_progress.csv")
+    cpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.csv")
     pd.DataFrame([progress]).to_csv(cpath, index=False)
 
+    # --- SQLite log ---
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO progress_logs(session_id, category, progress_json) VALUES (?, ?, ?)",
+        (sid, category, json.dumps(progress))
+    )
+    conn.commit()
+    conn.close()
+
 # --------------------------------------------------
-# Utility: Save Annotations per Case
+# 4. Utility: Save Annotations per Case
+#    (writes JSON and SQLite)
 # --------------------------------------------------
 def save_annotations(case_id: str, annotations: list):
     os.makedirs("evaluations", exist_ok=True)
+    # JSON export
     path = os.path.join("evaluations", f"{case_id}_annotations.json")
     with open(path, "w") as f:
         json.dump(annotations, f, indent=2)
 
+    # SQLite storage
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO annotations(case_id, annotations_json) VALUES (?, ?)",
+        (case_id, json.dumps(annotations))
+    )
+    conn.commit()
+    conn.close()
+
 # --------------------------------------------------
-# Initialize per‑workflow Session State
+# 5. Initialize per‑workflow Session State
 # --------------------------------------------------
 def init_state(key, default):
     if key not in st.session_state:
@@ -73,7 +133,7 @@ init_state("corrections_ai", [])
 init_state("assembled_ai", "")
 
 # --------------------------------------------------
-# Routing Setup
+# 6. Routing Setup
 # --------------------------------------------------
 params = st.experimental_get_query_params()
 if "page" in params:
@@ -86,7 +146,7 @@ cases = sorted(d for d in os.listdir(BASE_IMAGE_DIR) if os.path.isdir(os.path.jo
 total_cases = len(cases)
 
 # --------------------------------------------------
-# Helpers
+# 7. Helpers for Text & Carousel
 # --------------------------------------------------
 def load_text(path):
     return open(path, "r", encoding="utf-8").read() if os.path.exists(path) else ""
@@ -94,11 +154,15 @@ def load_text(path):
 def display_carousel(category, case_id):
     key = f"current_slice_{category}"
     folder = os.path.join(BASE_IMAGE_DIR, case_id)
+    if not os.path.exists(folder):
+        st.info("No images.")
+        return
+
     images = sorted(
         os.path.join(folder, f)
         for f in os.listdir(folder)
         if f.lower().endswith((".png", ".jpg", ".jpeg"))
-    ) if os.path.exists(folder) else []
+    )
     if not images:
         st.info("No images.")
         return
@@ -121,7 +185,7 @@ def display_carousel(category, case_id):
             st.rerun()
 
 # --------------------------------------------------
-# Pages
+# 8. Pages
 # --------------------------------------------------
 def index():
     st.title("Survey App")
@@ -137,21 +201,13 @@ def index():
     st.markdown("---")
     c1, c2, c3, c4 = st.columns(4)
     if c1.button("Turing Test"):
-        st.experimental_set_query_params(page="turing_test")
-        st.session_state.page = "turing_test"
-        st.rerun()
+        st.experimental_set_query_params(page="turing_test"); st.session_state.page = "turing_test"; st.rerun()
     if c2.button("Standard Eval"):
-        st.experimental_set_query_params(page="standard_eval")
-        st.session_state.page = "standard_eval"
-        st.rerun()
+        st.experimental_set_query_params(page="standard_eval"); st.session_state.page = "standard_eval"; st.rerun()
     if c3.button("AI Report Edit"):
-        st.experimental_set_query_params(page="ai_edit")
-        st.session_state.page = "ai_edit"
-        st.rerun()
+        st.experimental_set_query_params(page="ai_edit"); st.session_state.page = "ai_edit"; st.rerun()
     if c4.button("View All Results"):
-        st.experimental_set_query_params(page="view_results")
-        st.session_state.page = "view_results"
-        st.rerun()
+        st.experimental_set_query_params(page="view_results"); st.session_state.page = "view_results"; st.rerun()
 
 def turing_test():
     idx = st.session_state.last_case_turing
@@ -166,7 +222,6 @@ def turing_test():
     case = cases[idx]
     st.header(f"Turing Test: {case} ({idx+1}/{total_cases})")
 
-    # “Save & Back” persists current state
     if st.button("Save & Back"):
         prog = {
             "last_case":      idx,
@@ -180,7 +235,6 @@ def turing_test():
         st.experimental_set_query_params(page="index")
         st.rerun()
 
-    # Load & display A vs B
     gt = load_text(os.path.join(BASE_IMAGE_DIR, case, "text.txt"))
     ai = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
     assigns = st.session_state.assignments_turing
@@ -194,7 +248,6 @@ def turing_test():
     st.subheader("Report B")
     st.text_area("B", B, height=200, key=f"B_t_{case}")
 
-    # Initial evaluation
     if st.session_state.initial_eval_turing is None:
         choice = st.radio("Which is GT?", ["A", "B", "Not sure"], key=f"ch_t_{case}", index=2)
         if st.button("Submit Initial"):
@@ -203,7 +256,6 @@ def turing_test():
             st.success("Recorded initial eval.")
             st.rerun()
 
-    # After images
     if st.session_state.viewed_images_turing:
         st.markdown("#### Images")
         display_carousel("turing", case)
@@ -215,7 +267,6 @@ def turing_test():
             final = st.radio("New choice:", ["A", "B", "Not sure"], key=f"new_t_{case}", index=2)
         st.session_state.final_eval_turing = final
 
-        # ← Now also persist on “Finalize & Next”
         if st.button("Finalize & Next"):
             prog = {
                 "last_case":      idx,
@@ -367,36 +418,58 @@ def view_all_results():
         st.experimental_set_query_params(page="index")
         st.rerun()
 
-    # 1. Scan for all progress CSVs
-    filepaths = glob.glob("logs/*_progress.csv")
-    # 2. Extract session IDs
-    session_ids = {os.path.basename(fp).split("_")[1] for fp in filepaths}
-    # 3. Sort session IDs
-    session_list = sorted(session_ids)
+    conn = get_db_connection()
 
-    # 4. Display all historical session IDs
+    # 1. All Sessions
+    df_sessions = pd.read_sql_query(
+        "SELECT DISTINCT session_id FROM progress_logs ORDER BY session_id",
+        conn
+    )
     st.subheader("All Sessions with Saved Progress")
-    for sid in session_list:
-        st.write(f"- `{sid}`")
+    for sid in df_sessions["session_id"]:
+        st.write(f"- {sid}")
 
-    # 5. Then display the logs as before
-    st.subheader("Turing Test Logs")
-    for fp in sorted(glob.glob("logs/turing_test_*_progress.csv")):
-        st.markdown(f"**{os.path.basename(fp)}**")
-        st.dataframe(pd.read_csv(fp))
+    # 2. Logs by Category
+    for cat,label in [("turing_test","Turing Test Logs"),
+                      ("standard_evaluation","Standard Eval Logs"),
+                      ("ai_edit","AI Report Edit Logs")]:
+        st.subheader(label)
+        df = pd.read_sql_query(
+            "SELECT session_id, progress_json, timestamp FROM progress_logs WHERE category=? ORDER BY timestamp",
+            conn,
+            params=(cat,)
+        )
+        # expand JSON column into separate columns
+        if not df.empty:
+            df_expanded = pd.concat(
+                [df.drop(columns=["progress_json"]),
+                 df["progress_json"].apply(json.loads).apply(pd.Series)],
+                axis=1
+            )
+            st.dataframe(df_expanded)
+        else:
+            st.write("— no entries —")
 
-    st.subheader("Standard Eval Logs")
-    for fp in sorted(glob.glob("logs/standard_evaluation_*_progress.csv")):
-        st.markdown(f"**{os.path.basename(fp)}**")
-        st.dataframe(pd.read_csv(fp))
+    # 3. Annotations Table
+    st.subheader("All Case Annotations")
+    df_ann = pd.read_sql_query(
+        "SELECT case_id, annotations_json, timestamp FROM annotations ORDER BY timestamp",
+        conn
+    )
+    if not df_ann.empty:
+        df_ann_expanded = pd.concat(
+            [df_ann.drop(columns=["annotations_json"]),
+             df_ann["annotations_json"].apply(json.loads).explode().apply(pd.Series)],
+            axis=1
+        )
+        st.dataframe(df_ann_expanded)
+    else:
+        st.write("— no annotations —")
 
-    st.subheader("AI Report Edit Logs")
-    for fp in sorted(glob.glob("logs/ai_edit_*_progress.csv")):
-        st.markdown(f"**{os.path.basename(fp)}**")
-        st.dataframe(pd.read_csv(fp))
+    conn.close()
 
 # --------------------------------------------------
-# Main Router
+# 9. Main Router
 # --------------------------------------------------
 page = st.session_state.page
 if page == "turing_test":
