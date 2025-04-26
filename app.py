@@ -43,6 +43,30 @@ def init_db():
 init_db()
 
 # --------------------------------------------------
+# Helper: Prevent Duplicate SQLite Inserts
+# --------------------------------------------------
+def should_log(session_id: str, category: str, new_progress: dict) -> bool:
+    """
+    Returns True if the latest saved progress for this session/category
+    has a different last_case than new_progress['last_case'].
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT progress_json FROM progress_logs "
+        "WHERE session_id=? AND category=? "
+        "ORDER BY timestamp DESC LIMIT 1",
+        (session_id, category)
+    )
+    row = c.fetchone()
+    conn.close()
+    if row:
+        last = json.loads(row[0])
+        if last.get("last_case") == new_progress.get("last_case"):
+            return False
+    return True
+
+# --------------------------------------------------
 # 1. Generate & Store Unique Session ID
 # --------------------------------------------------
 if "session_id" not in st.session_state:
@@ -59,6 +83,10 @@ st.sidebar.markdown(f"**Session ID:** `{st.session_state.session_id}`")
 # --------------------------------------------------
 def save_progress(category: str, progress: dict):
     sid = st.session_state.session_id
+
+    # --- prevent duplicate logging when same last_case ---
+    if not should_log(sid, category, progress):
+        return
 
     # JSON
     os.makedirs(DB_DIR, exist_ok=True)
@@ -120,7 +148,7 @@ def save_annotations(case_id: str, annotations: list):
     conn.close()
 
 # --------------------------------------------------
-# 5. Initialize per‑workflow Session State
+# 5. Initialize per-workflow Session State
 # --------------------------------------------------
 def init_state(key, default):
     if key not in st.session_state:
@@ -426,6 +454,12 @@ def view_all_results():
                 df.drop(columns=["progress_json"]),
                 df["progress_json"].apply(json.loads).apply(pd.Series)
             ], axis=1)
+
+            # serialize any nested dict/list columns to JSON strings
+            for col in df_expanded.columns:
+                if df_expanded[col].apply(lambda x: isinstance(x, (dict, list))).any():
+                    df_expanded[col] = df_expanded[col].apply(json.dumps)
+
             # display Case if present
             if "last_case" in df_expanded.columns:
                 df_expanded["Case"] = df_expanded["last_case"]+1
@@ -448,11 +482,13 @@ def view_all_results():
             df_ai.drop(columns=["progress_json"]),
             df_ai["progress_json"].apply(json.loads).apply(pd.Series)
         ], axis=1)
-        # show case if assembled or corrections exist
-        if "case_id" in df_ai_expanded.columns:
-            st.dataframe(df_ai_expanded)
-        else:
-            st.dataframe(df_ai_expanded)
+
+        # serialize nested columns here too
+        for col in df_ai_expanded.columns:
+            if df_ai_expanded[col].apply(lambda x: isinstance(x, (dict, list))).any():
+                df_ai_expanded[col] = df_ai_expanded[col].apply(json.dumps)
+
+        st.dataframe(df_ai_expanded)
     else:
         st.write("— no AI edit logs found —")
 
