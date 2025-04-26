@@ -47,8 +47,9 @@ init_db()
 # --------------------------------------------------
 def should_log(session_id: str, category: str, new_progress: dict) -> bool:
     """
-    Returns False (skip) if the latest saved progress for this session/category
-    has the same 'last_case' (for evals) or same 'case_id' (for AI-edit).
+    Fetch the most recent row for this session & category,
+    compare its progress_json (as a dict) to new_progress;
+    only log if they differ.
     """
     conn = get_db_connection()
     c = conn.cursor()
@@ -60,17 +61,11 @@ def should_log(session_id: str, category: str, new_progress: dict) -> bool:
     )
     row = c.fetchone()
     conn.close()
-    if not row:
-        return True
-
-    last = json.loads(row[0])
-    # Turing & Standard use 'last_case'
-    if "last_case" in new_progress:
-        return last.get("last_case") != new_progress.get("last_case")
-    # AI-Edit uses 'case_id'
-    if "case_id" in new_progress and category == "ai_edit":
-        return last.get("case_id") != new_progress.get("case_id")
-    # Fallback: always log
+    if row:
+        last = json.loads(row[0])
+        # Python dict equality tests keys & values for equivalence :contentReference[oaicite:0]{index=0}
+        if last == new_progress:
+            return False
     return True
 
 # --------------------------------------------------
@@ -86,11 +81,12 @@ st.sidebar.markdown(f"**Session ID:** `{st.session_state.session_id}`")
 
 # --------------------------------------------------
 # 3. Utility: Save Progress per Category & Session
+#    (append to JSON array, append to CSV, plus SQLite)
 # --------------------------------------------------
 def save_progress(category: str, progress: dict):
     sid = st.session_state.session_id
 
-    # Skip if duplicate
+    # Skip duplicate if unchanged from last saved entry
     if not should_log(sid, category, progress):
         return
 
@@ -128,6 +124,7 @@ def save_progress(category: str, progress: dict):
 
 # --------------------------------------------------
 # 4. Utility: Save Annotations per Case
+#    (append to JSON array, plus SQLite)
 # --------------------------------------------------
 def save_annotations(case_id: str, annotations: list):
     os.makedirs("evaluations", exist_ok=True)
@@ -233,15 +230,14 @@ def display_carousel(category, case_id):
 # --------------------------------------------------
 def index():
     st.title("Survey App")
-    if total_cases == 0:
-        st.error("No cases found.")
-        return
+    if total_cases==0:
+        st.error("No cases found."); return
     st.markdown("### Your Progress")
     st.markdown(f"- **Turing Test**: Case {st.session_state.last_case_turing+1}/{total_cases}")
     st.markdown(f"- **Standard Eval**: Case {st.session_state.last_case_standard+1}/{total_cases}")
     st.markdown(f"- **AI Edit**: Case {st.session_state.last_case_ai+1}/{total_cases}")
     st.markdown("---")
-    c1, c2, c3, c4 = st.columns(4)
+    c1,c2,c3,c4 = st.columns(4)
     if c1.button("Turing Test"):
         st.experimental_set_query_params(page="turing_test"); st.session_state.page="turing_test"; st.rerun()
     if c2.button("Standard Eval"):
@@ -253,10 +249,10 @@ def index():
 
 def turing_test():
     idx = st.session_state.last_case_turing
-    if idx >= total_cases:
+    if idx>=total_cases:
         st.success("Turing Test complete!")
         if st.button("Home"):
-            st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+            st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
         return
     case = cases[idx]
     st.header(f"Turing Test: {case} ({idx+1}/{total_cases})")
@@ -270,7 +266,7 @@ def turing_test():
             "viewed_images": st.session_state.viewed_images_turing
         }
         save_progress("turing_test", prog)
-        st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+        st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
 
     gt = load_text(os.path.join(BASE_IMAGE_DIR, case, "text.txt"))
     ai = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
@@ -278,24 +274,24 @@ def turing_test():
     if case not in assigns:
         assigns[case] = random.choice([True, False])
         st.session_state.assignments_turing = assigns
-    A, B = (ai, gt) if assigns[case] else (gt, ai)
+    A,B = (ai,gt) if assigns[case] else (gt,ai)
     st.subheader("Report A"); st.text_area("A", A, height=200, key=f"A_t_{case}")
     st.subheader("Report B"); st.text_area("B", B, height=200, key=f"B_t_{case}")
 
     if st.session_state.initial_eval_turing is None:
-        choice = st.radio("Which is GT?", ["A", "B", "Not sure"], key=f"ch_t_{case}", index=2)
+        choice = st.radio("Which is GT?", ["A","B","Not sure"], key=f"ch_t_{case}", index=2)
         if st.button("Submit Initial"):
-            st.session_state.initial_eval_turing = choice
-            st.session_state.viewed_images_turing = True
+            st.session_state.initial_eval_turing=choice
+            st.session_state.viewed_images_turing=True
             st.success("Recorded initial eval."); st.rerun()
 
     if st.session_state.viewed_images_turing:
         st.markdown("#### Images"); display_carousel("turing", case)
         st.markdown(f"**Initial Eval:** {st.session_state.initial_eval_turing}")
-        up = st.radio("Keep or Update?", ["Keep", "Update"], key=f"up_t_{case}")
+        up = st.radio("Keep or Update?", ["Keep","Update"], key=f"up_t_{case}")
         final = st.session_state.initial_eval_turing
-        if up == "Update":
-            final = st.radio("New choice:", ["A", "B", "Not sure"], key=f"new_t_{case}", index=2)
+        if up=="Update":
+            final = st.radio("New choice:", ["A","B","Not sure"], key=f"new_t_{case}", index=2)
         st.session_state.final_eval_turing = final
         if st.button("Finalize & Next"):
             prog = {
@@ -307,19 +303,19 @@ def turing_test():
                 "viewed_images": st.session_state.viewed_images_turing
             }
             save_progress("turing_test", prog)
-            st.session_state.last_case_turing += 1
-            st.session_state.current_slice_turing = 0
-            st.session_state.initial_eval_turing = None
-            st.session_state.final_eval_turing = None
-            st.session_state.viewed_images_turing = False
+            st.session_state.last_case_turing+=1
+            st.session_state.current_slice_turing=0
+            st.session_state.initial_eval_turing=None
+            st.session_state.final_eval_turing=None
+            st.session_state.viewed_images_turing=False
             st.rerun()
 
 def evaluate_case():
     idx = st.session_state.last_case_standard
-    if idx >= total_cases:
+    if idx>=total_cases:
         st.success("Standard Eval complete!")
         if st.button("Home"):
-            st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+            st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
         return
     case = cases[idx]
     st.header(f"Standard Eval: {case} ({idx+1}/{total_cases})")
@@ -331,52 +327,52 @@ def evaluate_case():
             "corrections": st.session_state.corrections_standard
         }
         save_progress("standard_evaluation", prog)
-        st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+        st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
 
     gt = load_text(os.path.join(BASE_IMAGE_DIR, case, "text.txt"))
     ai = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
     assigns = st.session_state.assignments_standard
     if case not in assigns:
-        assigns[case] = random.choice([True, False])
-        st.session_state.assignments_standard = assigns
-    A, B = (ai, gt) if assigns[case] else (gt, ai)
-    st.subheader("Report A"); st.text_area("A", A, height=150, key=f"A_s_{case}")
-    st.subheader("Report B"); st.text_area("B", B, height=150, key=f"B_s_{case}")
-    st.markdown("#### Images"); display_carousel("standard", case)
+        assigns[case] = random.choice([True,False])
+        st.session_state.assignments_standard=assigns
+    A,B = (ai,gt) if assigns[case] else (gt,ai)
+    st.subheader("Report A"); st.text_area("A",A,height=150,key=f"A_s_{case}")
+    st.subheader("Report B"); st.text_area("B",B,height=150,key=f"B_s_{case}")
+    st.markdown("#### Images"); display_carousel("standard",case)
 
-    organ = st.selectbox("Organ", [""] + ["LIVER","PANCREAS","KIDNEY","OTHER"], key=f"org_s_{case}")
-    reason = st.text_input("Reason", key=f"rsn_s_{case}")
-    details = st.text_area("Details", key=f"dtl_s_{case}")
+    organ = st.selectbox("Organ",[""]+["LIVER","PANCREAS","KIDNEY","OTHER"],key=f"org_s_{case}")
+    reason = st.text_input("Reason",key=f"rsn_s_{case}")
+    details = st.text_area("Details",key=f"dtl_s_{case}")
     if st.button("Add Corr") and organ:
         st.session_state.corrections_standard.append({
-            "case_id": case, "organ": organ, "reason": reason, "details": details
+            "case_id":case,"organ":organ,"reason":reason,"details":details
         })
         st.success("Added correction"); st.rerun()
 
-    cors = [c for c in st.session_state.corrections_standard if c["case_id"] == case]
+    cors = [c for c in st.session_state.corrections_standard if c["case_id"]==case]
     if cors:
         st.table(pd.DataFrame(cors).drop(columns=["case_id"]))
 
-    choice = st.radio("Best report?", ["A","B","Corrected","Equal"], key=f"ch_s_{case}")
+    choice = st.radio("Best report?",["A","B","Corrected","Equal"],key=f"ch_s_{case}")
     if st.button("Submit & Next"):
         if cors:
-            save_annotations(case, cors)
-        st.session_state.corrections_standard = [c for c in st.session_state.corrections_standard if c["case_id"] != case]
-        st.session_state.last_case_standard += 1
-        st.session_state.current_slice_standard = 0
+            save_annotations(case,cors)
+        st.session_state.corrections_standard = [c for c in st.session_state.corrections_standard if c["case_id"]!=case]
+        st.session_state.last_case_standard+=1
+        st.session_state.current_slice_standard=0
         st.rerun()
 
 def ai_edit():
     idx = st.session_state.last_case_ai
-    if idx >= total_cases:
+    if idx>=total_cases:
         st.success("AI Edit complete!")
         if st.button("Home"):
-            st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+            st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
         return
     case = cases[idx]
     st.header(f"AI Edit: {case} ({idx+1}/{total_cases})")
 
-    # Save & Back
+    # -- Save & Back logs current work --
     if st.button("Save & Back"):
         prog = {
             "case_id": case,
@@ -385,7 +381,7 @@ def ai_edit():
             "corrections": st.session_state.corrections_ai
         }
         save_progress("ai_edit", prog)
-        st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+        st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
 
     orig = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
     st.subheader("Original AI Report")
@@ -395,7 +391,7 @@ def ai_edit():
     mode = st.radio("Mode", ["Free","Organ"], key=f"md_ai_{case}")
     st.session_state["last_mode_ai"] = mode
 
-    if mode == "Free":
+    if mode=="Free":
         text = st.session_state.assembled_ai or orig
         new = st.text_area("Edit", text, height=200, key=f"free_ai_{case}")
         st.session_state.assembled_ai = new
@@ -409,7 +405,7 @@ def ai_edit():
             })
             st.success("Added"); st.rerun()
 
-        cors = [c for c in st.session_state.corrections_ai if c["case_id"] == case]
+        cors = [c for c in st.session_state.corrections_ai if c["case_id"]==case]
         if cors:
             st.table(pd.DataFrame(cors).drop(columns=["case_id"]))
             if st.button("Assemble"):
@@ -417,7 +413,7 @@ def ai_edit():
                 st.session_state.assembled_ai = txt
                 st.success("Assembled"); st.rerun()
 
-    # Submit & Next
+    # -- Submit & Next now logs mode + edits every time --
     if st.button("Submit & Next"):
         prog = {
             "case_id": case,
@@ -427,7 +423,7 @@ def ai_edit():
         }
         save_progress("ai_edit", prog)
 
-        st.session_state.corrections_ai = [c for c in st.session_state.corrections_ai if c["case_id"] != case]
+        st.session_state.corrections_ai = [c for c in st.session_state.corrections_ai if c["case_id"]!=case]
         st.session_state.assembled_ai = ""
         st.session_state.last_case_ai += 1
         st.session_state.current_slice_ai = 0
@@ -436,7 +432,7 @@ def ai_edit():
 def view_all_results():
     st.title("All Saved Results")
     if st.button("Home"):
-        st.session_state.page = "index"; st.experimental_set_query_params(page="index"); st.rerun()
+        st.session_state.page="index"; st.experimental_set_query_params(page="index"); st.rerun()
 
     conn = get_db_connection()
 
@@ -447,7 +443,7 @@ def view_all_results():
         st.write(f"- {sid}")
 
     # Turing & Standard
-    for cat, label in [("turing_test","Turing Test Logs"), ("standard_evaluation","Standard Eval Logs")]:
+    for cat,label in [("turing_test","Turing Test Logs"),("standard_evaluation","Standard Eval Logs")]:
         st.subheader(label)
         df = pd.read_sql_query(
             "SELECT session_id, progress_json, timestamp FROM progress_logs WHERE category=? ORDER BY timestamp",
@@ -458,12 +454,12 @@ def view_all_results():
                 df.drop(columns=["progress_json"]),
                 df["progress_json"].apply(json.loads).apply(pd.Series)
             ], axis=1)
-            # serialize nested columns
+            # serialize any nested dict/list columns
             for col in df_expanded.columns:
-                if df_expanded[col].apply(lambda x: isinstance(x, (dict,list))).any():
+                if df_expanded[col].apply(lambda x: isinstance(x,(dict,list))).any():
                     df_expanded[col] = df_expanded[col].apply(json.dumps)
             if "last_case" in df_expanded.columns:
-                df_expanded["Case"] = df_expanded["last_case"] + 1
+                df_expanded["Case"] = df_expanded["last_case"]+1
                 df_expanded = df_expanded.drop(columns=["last_case"])
                 cols = ["Case"] + [c for c in df_expanded.columns if c!="Case"]
                 st.dataframe(df_expanded[cols])
@@ -484,7 +480,7 @@ def view_all_results():
             df_ai["progress_json"].apply(json.loads).apply(pd.Series)
         ], axis=1)
         for col in df_ai_expanded.columns:
-            if df_ai_expanded[col].apply(lambda x: isinstance(x, (dict,list))).any():
+            if df_ai_expanded[col].apply(lambda x: isinstance(x,(dict,list))).any():
                 df_ai_expanded[col] = df_ai_expanded[col].apply(json.dumps)
         st.dataframe(df_ai_expanded)
     else:
@@ -496,13 +492,13 @@ def view_all_results():
 # 9. Main Router
 # --------------------------------------------------
 page = st.session_state.page
-if page == "turing_test":
+if page=="turing_test":
     turing_test()
-elif page == "standard_eval":
+elif page=="standard_eval":
     evaluate_case()
-elif page == "ai_edit":
+elif page=="ai_edit":
     ai_edit()
-elif page == "view_results":
+elif page=="view_results":
     view_all_results()
 else:
     index()
