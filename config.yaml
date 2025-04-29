@@ -1,16 +1,17 @@
 credentials:
   usernames:
-    alice:
-      email: alice@example.com
-      name: Alice
-      password: "<PLACE_HASHED_PASSWORD_HERE>"
-    bob:
-      email: bob@example.com
-      name: Bob
-      password: "<PLACE_HASHED_PASSWORD_HERE>"
+    jsmith:
+      email: test@gmail.com
+      name: Test
+      password: abc # To be replaced with hashed password
+    rbriggs:
+      email: test@gmail.com
+      name: Test
+      password: def # To be replaced with hashed password
 cookie:
   expiry_days: 30
-  key: "some_random_string"
-  name: "auth_cookie"
+  key: random_signature_key # Must be string
+  name: random_cookie_name
 preauthorized:
-  emails: []
+  emails:
+  - test@gmail.com
