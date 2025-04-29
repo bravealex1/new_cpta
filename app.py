@@ -10,13 +10,12 @@ import sqlite3
 from datetime import datetime
 
 
-import yaml
 import streamlit as st
 import streamlit_authenticator as stauth
+import yaml
 from yaml.loader import SafeLoader
-from streamlit_authenticator.utilities.hasher import Hasher
 
-# Load configuration as before...
+# Load configuration...
 with open("config.yaml") as file:
     config = yaml.load(file, Loader=SafeLoader)
 
@@ -28,16 +27,22 @@ authenticator = stauth.Authenticate(
     preauthorized      = config.get("preauthorized", [])
 )
 
-# 1) Call login with unrendered so it returns a tuple
-name, authentication_status, username = authenticator.login(
-    location="unrendered",  # must be 'unrendered' to unpack
+# 1) Render in the sidebar (or 'main') – this returns None
+authenticator.login(
+    location="sidebar",  # or "main"
     key="LoginForm"
-)  # Returns tuple[str, bool, str] :contentReference[oaicite:5]{index=5}
+)  # Returns None when location != 'unrendered' :contentReference[oaicite:6]{index=6}
 
-# 2) Now render your app based on the returned values
+# 2) Retrieve authentication details from session_state
+name                  = st.session_state.get("name")
+authentication_status = st.session_state.get("authentication_status")
+username              = st.session_state.get("username")
+
+# 3) Use them as before
 if authentication_status:
+    authenticator.logout(location="sidebar", key="Logout")
     st.write(f"✅ Welcome *{name}*")
-    # ... your protected content ...
+    # ... protected content ...
 elif authentication_status is False:
     st.error("❌ Username/password is incorrect")
 else:
