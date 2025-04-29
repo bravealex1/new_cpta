@@ -1,4 +1,4 @@
-streamlit-authenticator>=0.4.2
+streamlit-authenticator
 bcrypt>=3.1.7 
 PyYAML>=5.3.1                       
 bcrypt>=3.1.7                       
