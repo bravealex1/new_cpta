@@ -9,6 +9,59 @@ import glob
 import sqlite3
 from datetime import datetime
 
+
+# ───── Add these imports ─────
+import streamlit_authenticator as stauth
+from streamlit_authenticator import Authenticate
+# ─────────────────────────────
+
+# --------------------------------------------------
+# Authentication Setup
+# --------------------------------------------------
+
+# 1) Define your users & (hashed) passwords.
+#    For demo purposes we're hashing two plaintext passwords.
+#    In production, store these hashes securely (e.g. in secrets.toml).
+plain_passwords = ["password1", "password2"]
+hashed_passwords = stauth.Hasher(plain_passwords).generate()
+
+credentials = {
+    "usernames": {
+        "alice": {
+            "name": "Alice Example",
+            "password": hashed_passwords[0]
+        },
+        "bob": {
+            "name": "Bob Example",
+            "password": hashed_passwords[1]
+        }
+    }
+}
+
+# 2) Create the authenticator
+authenticator = Authenticate(
+    credentials,
+    cookie_name="my_app_cookie",
+    key="abcdef",           # <-- change to a strong, random key
+    cookie_expiry_days=30
+)
+
+# 3) Render the login widget
+name, authentication_status, username = authenticator.login(
+    "Please log in", "main"
+)
+
+# 4) Handle login status
+if authentication_status:
+    authenticator.logout("Logout", "main")
+    st.sidebar.success(f"Welcome, {name}!")
+elif authentication_status is False:
+    st.error("❌ Username/password is incorrect")
+    st.stop()
+elif authentication_status is None:
+    st.warning("⚠️ Please enter your username and password")
+    st.stop()
+
 # --------------------------------------------------
 # 0. Database Setup for Queryable Logs
 # --------------------------------------------------
