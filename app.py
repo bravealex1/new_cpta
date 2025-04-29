@@ -16,21 +16,10 @@ import streamlit_authenticator as stauth
 from yaml.loader import SafeLoader
 from streamlit_authenticator.utilities.hasher import Hasher
 
-# 1. Load your YAML config
+# Load configuration as before...
 with open("config.yaml") as file:
     config = yaml.load(file, Loader=SafeLoader)
 
-# 2. Guard: ensure credentials → usernames exists
-if "credentials" not in config or "usernames" not in config["credentials"]:
-    st.error("❌ Your config.yaml must include a 'credentials → usernames' section.")
-    st.stop()
-
-# 3. Hash all plain-text passwords in the credentials dict
-#    This walks through config['credentials']['usernames']
-#    and replaces each 'password' value with its bcrypt hash.
-config["credentials"] = Hasher.hash_passwords(config["credentials"]) 
-
-# 4. Initialize the authenticator with hashed credentials
 authenticator = stauth.Authenticate(
     credentials        = config["credentials"],
     cookie_name        = config["cookie"]["name"],
@@ -39,25 +28,20 @@ authenticator = stauth.Authenticate(
     preauthorized      = config.get("preauthorized", [])
 )
 
-# 5. Render the login widget and handle outcomes
+# 1) Call login with unrendered so it returns a tuple
 name, authentication_status, username = authenticator.login(
-    location="sidebar",  
-    key="Login"          
-)
+    location="unrendered",  # must be 'unrendered' to unpack
+    key="LoginForm"
+)  # Returns tuple[str, bool, str] :contentReference[oaicite:5]{index=5}
 
-# 2. Handle login outcomes
+# 2) Now render your app based on the returned values
 if authentication_status:
-    # Render logout button in the sidebar
-    authenticator.logout(
-        location="sidebar",
-        key="Logout"         
-    )
-    st.write(f"Welcome *{name}*")
-    st.title("Some content")
+    st.write(f"✅ Welcome *{name}*")
+    # ... your protected content ...
 elif authentication_status is False:
-    st.error("Username/password is incorrect")
-elif authentication_status is None:
-    st.warning("Please enter your username and password")
+    st.error("❌ Username/password is incorrect")
+else:
+    st.warning("⚠️ Please enter your username and password")
 
 
 
