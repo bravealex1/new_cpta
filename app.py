@@ -10,28 +10,27 @@ import sqlite3
 from datetime import datetime
 
 
-# --------------------------------------------------
-# Authentication Setup
-# --------------------------------------------------
 import yaml
 import streamlit as st
 import streamlit_authenticator as stauth
 from yaml.loader import SafeLoader
 from streamlit_authenticator.utilities.hasher import Hasher
 
-# Load and inspect your YAML config
+# 1. Load your YAML config
 with open("config.yaml") as file:
     config = yaml.load(file, Loader=SafeLoader)
 
-# Guard clause: ensure the required structure exists
+# 2. Guard: ensure credentials → usernames exists
 if "credentials" not in config or "usernames" not in config["credentials"]:
     st.error("❌ Your config.yaml must include a 'credentials → usernames' section.")
     st.stop()
 
-# Pre‐hash all plain‐text passwords in the credentials dict
-config["credentials"] = Hasher.hash_passwords(config["credentials"])  # :contentReference[oaicite:2]{index=2}
+# 3. Hash all plain-text passwords in the credentials dict
+#    This walks through config['credentials']['usernames']
+#    and replaces each 'password' value with its bcrypt hash.
+config["credentials"] = Hasher.hash_passwords(config["credentials"])  # :contentReference[oaicite:4]{index=4}
 
-# Initialize the authenticator with hashed passwords
+# 4. Initialize the authenticator with hashed credentials
 authenticator = stauth.Authenticate(
     credentials        = config["credentials"],
     cookie_name        = config["cookie"]["name"],
@@ -40,18 +39,18 @@ authenticator = stauth.Authenticate(
     preauthorized      = config.get("preauthorized", [])
 )
 
-# Render login widget
+# 5. Render the login widget and handle outcomes
 name, authentication_status, username = authenticator.login("Login", "sidebar")
 
-# Handle authentication outcomes
 if authentication_status:
     authenticator.logout("Logout", "sidebar")
     st.write(f"Welcome *{name}*")
     st.title("Some content")
 elif authentication_status is False:
-    st.error("Username/password is incorrect")
+    st.error("❌ Username/password is incorrect")
 elif authentication_status is None:
-    st.warning("Please enter your username and password")
+    st.warning("⚠️ Please enter your username and password")
+
 
 # --------------------------------------------------
 # 0. Database Setup for Queryable Logs
