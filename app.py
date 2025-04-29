@@ -28,7 +28,7 @@ if "credentials" not in config or "usernames" not in config["credentials"]:
 # 3. Hash all plain-text passwords in the credentials dict
 #    This walks through config['credentials']['usernames']
 #    and replaces each 'password' value with its bcrypt hash.
-config["credentials"] = Hasher.hash_passwords(config["credentials"])  # :contentReference[oaicite:4]{index=4}
+config["credentials"] = Hasher.hash_passwords(config["credentials"]) 
 
 # 4. Initialize the authenticator with hashed credentials
 authenticator = stauth.Authenticate(
@@ -40,16 +40,25 @@ authenticator = stauth.Authenticate(
 )
 
 # 5. Render the login widget and handle outcomes
-name, authentication_status, username = authenticator.login("Login", "sidebar")
+name, authentication_status, username = authenticator.login(
+    location="sidebar",  
+    key="Login"          
+)
 
+# 2. Handle login outcomes
 if authentication_status:
-    authenticator.logout("Logout", "sidebar")
+    # Render logout button in the sidebar
+    authenticator.logout(
+        location="sidebar",
+        key="Logout"         
+    )
     st.write(f"Welcome *{name}*")
     st.title("Some content")
 elif authentication_status is False:
-    st.error("❌ Username/password is incorrect")
+    st.error("Username/password is incorrect")
 elif authentication_status is None:
-    st.warning("⚠️ Please enter your username and password")
+    st.warning("Please enter your username and password")
+
 
 
 # --------------------------------------------------
