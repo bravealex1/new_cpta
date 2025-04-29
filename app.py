@@ -10,15 +10,26 @@ import sqlite3
 from datetime import datetime
 
 
-import streamlit as st
 import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
+from streamlit_authenticator.utilities.hasher import Hasher
 
-# Load configuration...
+# --------------------------------------------------
+# 0. Authentication Setup (must be first)
+# --------------------------------------------------
 with open("config.yaml") as file:
     config = yaml.load(file, Loader=SafeLoader)
 
+# Ensure credentials → usernames exists
+if "credentials" not in config or "usernames" not in config["credentials"]:
+    st.error("❌ Your config.yaml must include a 'credentials → usernames' section.")
+    st.stop()
+
+# Hash any plain-text passwords in the credentials dict
+config["credentials"] = Hasher.hash_passwords(config["credentials"])
+
+# Initialize authenticator
 authenticator = stauth.Authenticate(
     credentials        = config["credentials"],
     cookie_name        = config["cookie"]["name"],
@@ -27,27 +38,25 @@ authenticator = stauth.Authenticate(
     preauthorized      = config.get("preauthorized", [])
 )
 
-# 1) Render in the sidebar (or 'main') – this returns None
-authenticator.login(
-    location="sidebar",  # or "main"
-    key="LoginForm"
-)  # Returns None when location != 'unrendered' :contentReference[oaicite:6]{index=6}
+# Render login widget in sidebar
+authenticator.login(location="sidebar", key="login")
 
-# 2) Retrieve authentication details from session_state
+# Pull status from session_state
 name                  = st.session_state.get("name")
 authentication_status = st.session_state.get("authentication_status")
 username              = st.session_state.get("username")
 
-# 3) Use them as before
-if authentication_status:
-    authenticator.logout(location="sidebar", key="Logout")
-    st.write(f"✅ Welcome *{name}*")
-    # ... protected content ...
-elif authentication_status is False:
-    st.error("❌ Username/password is incorrect")
-else:
-    st.warning("⚠️ Please enter your username and password")
+# Block everything below unless logged in
+if not authentication_status:
+    if authentication_status is False:
+        st.error("❌ Username/password is incorrect")
+    else:
+        st.warning("⚠️ Please enter your username and password")
+    st.stop()
 
+# At this point we know authentication_status is True:
+authenticator.logout(location="sidebar", key="logout")
+st.sidebar.markdown(f"Logged in as **{name}**")
 
 
 # --------------------------------------------------
