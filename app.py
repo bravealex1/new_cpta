@@ -10,56 +10,40 @@ import sqlite3
 from datetime import datetime
 
 
-# ───── Add these imports ─────
-import streamlit_authenticator as stauth
-from streamlit_authenticator import Authenticate
-# ─────────────────────────────
-
 # --------------------------------------------------
 # Authentication Setup
 # --------------------------------------------------
+import yaml
+import streamlit as st
+import streamlit_authenticator as stauth
+from yaml.loader import SafeLoader
+from streamlit_authenticator.utilities.hasher import Hasher
 
-# 1) Define your users & (hashed) passwords.
-#    For demo purposes we're hashing two plaintext passwords.
-#    In production, store these hashes securely (e.g. in secrets.toml).
-plain_passwords = ["password1", "password2"]
-hashed_passwords = stauth.Hasher(plain_passwords).generate()
+# Load your YAML config
+with open("config.yaml") as file:
+    config = yaml.load(file, Loader=SafeLoader)
 
-credentials = {
-    "usernames": {
-        "alice": {
-            "name": "Alice Example",
-            "password": hashed_passwords[0]
-        },
-        "bob": {
-            "name": "Bob Example",
-            "password": hashed_passwords[1]
-        }
-    }
-}
+# Hash any plain-text passwords in place
+config["credentials"]["usernames"] = Hasher.hash_passwords(
+    config["credentials"]["usernames"]
+) 
 
-# 2) Create the authenticator
-authenticator = Authenticate(
-    credentials,
-    cookie_name="my_app_cookie",
-    key="abcdef",           # <-- change to a strong, random key
-    cookie_expiry_days=30
+# Initialize the authenticator with hashed passwords
+authenticator = stauth.Authenticate(
+    credentials        = config["credentials"],
+    cookie_name        = config["cookie"]["name"],
+    key                = config["cookie"]["key"],
+    cookie_expiry_days = config["cookie"]["expiry_days"],
+    preauthorized      = config.get("preauthorized")
 )
 
-# 3) Render the login widget
-name, authentication_status, username = authenticator.login(
-    "Please log in", "main"
-)
-
-# 4) Handle login status
-if authentication_status:
-    authenticator.logout("Logout", "main")
-    st.sidebar.success(f"Welcome, {name}!")
-elif authentication_status is False:
-    st.error("❌ Username/password is incorrect")
-    st.stop()
-elif authentication_status is None:
-    st.warning("⚠️ Please enter your username and password")
+# Render the login widget
+name, authentication_status, username = authenticator.login("Login", "sidebar")
+if not authentication_status:
+    if authentication_status is False:
+        st.error("❌ Username/password is incorrect")
+    elif authentication_status is None:
+        st.warning("⚠️ Please enter your username and password")
     st.stop()
 
 # --------------------------------------------------

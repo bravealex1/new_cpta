@@ -1,0 +1,16 @@
+credentials:
+  usernames:
+    alice:
+      email: alice@example.com
+      name: Alice
+      password: "<PLACE_HASHED_PASSWORD_HERE>"
+    bob:
+      email: bob@example.com
+      name: Bob
+      password: "<PLACE_HASHED_PASSWORD_HERE>"
+cookie:
+  expiry_days: 30
+  key: "some_random_string"
+  name: "auth_cookie"
+preauthorized:
+  emails: []
