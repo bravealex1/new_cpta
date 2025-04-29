@@ -1,11 +1,9 @@
 credentials:
   usernames:
-    jsmith:
-      email: test@gmail.com
+    TuringTest:
       name: Test
       password: abc # To be replaced with hashed password
-    rbriggs:
-      email: test@gmail.com
+    RevolutionizeAIinMedicine:
       name: Test
       password: def # To be replaced with hashed password
 cookie:
