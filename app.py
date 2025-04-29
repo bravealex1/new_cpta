@@ -182,7 +182,7 @@ if "page" in params:
 elif "page" not in st.session_state:
     st.session_state.page = "index"
 
-BASE_IMAGE_DIR = "2D_Image"
+BASE_IMAGE_DIR = "2D_Image_clean"
 cases = sorted([d for d in os.listdir(BASE_IMAGE_DIR) if os.path.isdir(os.path.join(BASE_IMAGE_DIR, d))])
 total_cases = len(cases)
 
