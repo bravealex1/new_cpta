@@ -19,8 +19,9 @@ import streamlit_authenticator as stauth
 from yaml.loader import SafeLoader
 from streamlit_authenticator.utilities.hasher import Hasher
 
+passwords = ['abc', 'def']
+hashed_passwords = Hasher.hash_list(passwords)
 
-hashed_passwords = stauth.Hasher(['abc', 'def']).generate()
 # Load your YAML config
 with open("config.yaml") as file:
     config = yaml.load(file, Loader=SafeLoader)
@@ -41,12 +42,14 @@ authenticator = stauth.Authenticate(
 
 # Render the login widget
 name, authentication_status, username = authenticator.login("Login", "sidebar")
-if not authentication_status:
-    if authentication_status is False:
-        st.error("❌ Username/password is incorrect")
-    elif authentication_status is None:
-        st.warning("⚠️ Please enter your username and password")
-    st.stop()
+if authentication_status:
+    authenticator.logout('Logout', 'main')
+    st.write(f'Welcome *{name}*')
+    st.title('Some content')
+elif authentication_status == False:
+    st.error('Username/password is incorrect')
+elif authentication_status == None:
+    st.warning('Please enter your username and password')
 
 # --------------------------------------------------
 # 0. Database Setup for Queryable Logs
