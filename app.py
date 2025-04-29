@@ -19,17 +19,17 @@ import streamlit_authenticator as stauth
 from yaml.loader import SafeLoader
 from streamlit_authenticator.utilities.hasher import Hasher
 
-passwords = ['abc', 'def']
-hashed_passwords = Hasher.hash_list(passwords)
-
-# Load your YAML config
+# Load and inspect your YAML config
 with open("config.yaml") as file:
     config = yaml.load(file, Loader=SafeLoader)
 
-# Hash any plain-text passwords in place
-config["credentials"]["usernames"] = Hasher.hash_passwords(
-    config["credentials"]["usernames"]
-) 
+# Guard clause: ensure the required structure exists
+if "credentials" not in config or "usernames" not in config["credentials"]:
+    st.error("❌ Your config.yaml must include a 'credentials → usernames' section.")
+    st.stop()
+
+# Pre‐hash all plain‐text passwords in the credentials dict
+config["credentials"] = Hasher.hash_passwords(config["credentials"])  # :contentReference[oaicite:2]{index=2}
 
 # Initialize the authenticator with hashed passwords
 authenticator = stauth.Authenticate(
@@ -37,19 +37,21 @@ authenticator = stauth.Authenticate(
     cookie_name        = config["cookie"]["name"],
     key                = config["cookie"]["key"],
     cookie_expiry_days = config["cookie"]["expiry_days"],
-    preauthorized      = config.get("preauthorized")
+    preauthorized      = config.get("preauthorized", [])
 )
 
-# Render the login widget
+# Render login widget
 name, authentication_status, username = authenticator.login("Login", "sidebar")
+
+# Handle authentication outcomes
 if authentication_status:
-    authenticator.logout('Logout', 'main')
-    st.write(f'Welcome *{name}*')
-    st.title('Some content')
-elif authentication_status == False:
-    st.error('Username/password is incorrect')
-elif authentication_status == None:
-    st.warning('Please enter your username and password')
+    authenticator.logout("Logout", "sidebar")
+    st.write(f"Welcome *{name}*")
+    st.title("Some content")
+elif authentication_status is False:
+    st.error("Username/password is incorrect")
+elif authentication_status is None:
+    st.warning("Please enter your username and password")
 
 # --------------------------------------------------
 # 0. Database Setup for Queryable Logs
