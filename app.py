@@ -19,6 +19,8 @@ import streamlit_authenticator as stauth
 from yaml.loader import SafeLoader
 from streamlit_authenticator.utilities.hasher import Hasher
 
+
+hashed_passwords = stauth.Hasher(['abc', 'def']).generate()
 # Load your YAML config
 with open("config.yaml") as file:
     config = yaml.load(file, Loader=SafeLoader)
