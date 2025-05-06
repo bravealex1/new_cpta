@@ -49,10 +49,68 @@ if not authentication_status:
         st.warning("⚠️ Please enter your username and password")
     st.stop()
 
+def save_progress(category: str, progress: dict):
+    sid = st.session_state.session_id
+    if not should_log(sid, category, progress):
+        return
+
+    # JSON file
+    os.makedirs(DB_DIR, exist_ok=True)
+    jpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.json")
+    if os.path.exists(jpath):
+        with open(jpath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            data = data if isinstance(data, list) else [data]
+    else:
+        data = []
+    data.append(progress)
+    with open(jpath, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+    # CSV file
+    cpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.csv")
+    df = pd.DataFrame([progress])
+    if os.path.exists(cpath):
+        df.to_csv(cpath, index=False, mode="a", header=False)
+    else:
+        df.to_csv(cpath, index=False)
+
+    # SQLite
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO progress_logs(session_id, category, progress_json) VALUES (?, ?, ?)",
+        (sid, category, json.dumps(progress))
+    )
+    conn.commit()
+    conn.close()
+
+def save_annotations(case_id: str, annotations: list):
+    os.makedirs("evaluations", exist_ok=True)
+    path = os.path.join("evaluations", f"{case_id}_annotations.json")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            data = data if isinstance(data, list) else [data]
+    else:
+        data = []
+    data.extend(annotations)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO annotations(case_id, annotations_json) VALUES (?, ?)",
+        (case_id, json.dumps(annotations))
+    )
+    conn.commit()
+    conn.close()
+
+# --------------------------------------------------
+# Callback that flushes everything on logout
+# --------------------------------------------------
 def save_all_progress(_=None):
-    """
-    Flush any in-flight progress to the DB when the user logs out.
-    """
     # Turing Test
     if (
         st.session_state.initial_eval_turing is not None
@@ -91,12 +149,14 @@ def save_all_progress(_=None):
         }
         save_progress("ai_edit", prog)
 
+# --------------------------------------------------
+# Register logout callback
+# --------------------------------------------------
 authenticator.logout(
     location="sidebar",
     key="auth_logout",
     callback=save_all_progress
 )
-st.sidebar.markdown(f"Logged in as **{name}**")
 
 # --------------------------------------------------
 # 1. Session ID per user (persist across logins)
