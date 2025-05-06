@@ -49,6 +49,31 @@ if not authentication_status:
         st.warning("⚠️ Please enter your username and password")
     st.stop()
 
+
+def should_log(session_id: str, category: str, new_progress: dict) -> bool:
+    """
+    Skip logging if the latest saved entry for this session/category
+    has the same last_case (for evals) or same case_id (for AI-edit).
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT progress_json FROM progress_logs "
+        "WHERE session_id=? AND category=? "
+        "ORDER BY timestamp DESC LIMIT 1",
+        (session_id, category)
+    )
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return True
+    last = json.loads(row[0])
+    if "last_case" in new_progress:
+        return last.get("last_case") != new_progress.get("last_case")
+    if category == "ai_edit" and "case_id" in new_progress:
+        return last.get("case_id") != new_progress.get("case_id")
+    return True
+    
 def save_progress(category: str, progress: dict):
     sid = st.session_state.session_id
     if not should_log(sid, category, progress):
