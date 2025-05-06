@@ -1,21 +1,22 @@
 import re
-import streamlit as st
 import os
 import json
 import random
-import pandas as pd
-import sqlite3
 from datetime import datetime
-import uuid                                # ← for unique session IDs
+import sqlite3
 
+import streamlit as st
+import pandas as pd
 import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 from streamlit_authenticator.utilities.hasher import Hasher
 
-# --------------------------------------------------
-# 0. Authentication Setup (must be first)
-# --------------------------------------------------
+# ─── Additional imports for unique session IDs ─────────────────────────────────
+from streamlit.runtime import get_instance
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+# ─── Authentication Setup (must be first) ───────────────────────────────────────
 with open("config.yaml") as file:
     config = yaml.load(file, Loader=SafeLoader)
 
@@ -50,20 +51,73 @@ if not authentication_status:
         st.warning("⚠️ Please enter your username and password")
     st.stop()
 
-# --------------------------------------------------
-# 1. Create a truly unique session_id per login/tab
-# --------------------------------------------------
-if "session_uid" not in st.session_state:
-    # Generate a random UUID4 only once, when they first log in
-    st.session_state.session_uid = str(uuid.uuid4())
-if "session_id" not in st.session_state:
-    # Combine the username with this UUID for clarity
-    st.session_state.session_id = f"{username}_{st.session_state.session_uid}"
+# ─── Helper: Get a unique session ID per connection ──────────────────────────────
+def get_unique_user_session():
+    """Return the Streamlit-generated session ID for this connection."""
+    ctx = get_script_run_ctx()
+    if ctx is None:
+        return username  # fallback
+    raw_id = ctx.session_id
+    # Optional: verify session exists (Streamlit ≥1.30)
+    try:
+        session_info = get_instance()._session_mgr.get_session_info(raw_id)
+        if session_info is None:
+            raise RuntimeError("No Streamlit session object found.")
+    except Exception:
+        pass
+    return raw_id
+
+# Assign a composite session_id combining username + raw session ID
+unique_sid = get_unique_user_session()
+st.session_state.session_id = f"{username}_{unique_sid}"
 st.sidebar.markdown(f"**Session ID:** `{st.session_state.session_id}`")
 
-# --------------------------------------------------
-# 2. Database + file‐based init (unchanged)
-# --------------------------------------------------
+# ─── Callback to save progress on logout ────────────────────────────────────────
+def save_all_progress(_=None):
+    # ... [existing save_all_progress logic unchanged] ...
+    if (
+        st.session_state.initial_eval_turing is not None
+        or st.session_state.viewed_images_turing
+    ):
+        prog = {
+            "case_id":       st.session_state.last_case_turing,
+            "last_case":     st.session_state.last_case_turing,
+            "assignments":   st.session_state.assignments_turing,
+            "initial_eval":  st.session_state.initial_eval_turing,
+            "final_eval":    st.session_state.final_eval_turing,
+            "viewed_images": st.session_state.viewed_images_turing,
+        }
+        save_progress("turing_test", prog)
+
+    if st.session_state.corrections_standard:
+        prog = {
+            "case_id":     st.session_state.last_case_standard,
+            "last_case":   st.session_state.last_case_standard,
+            "assignments": st.session_state.assignments_standard,
+            "corrections": st.session_state.corrections_standard,
+        }
+        save_progress("standard_evaluation", prog)
+
+    if (
+        st.session_state.assembled_ai
+        or st.session_state.corrections_ai
+    ):
+        prog = {
+            "case_id":     st.session_state.last_case_ai,
+            "mode":        st.session_state.get("last_mode_ai", "Free"),
+            "assembled":   st.session_state.assembled_ai,
+            "corrections": st.session_state.corrections_ai,
+        }
+        save_progress("ai_edit", prog)
+
+# Place the logout button after session_id assignment so callback sees the right ID
+authenticator.logout(
+    location="sidebar",
+    key="auth_logout",
+    callback=save_all_progress
+)
+
+# ─── Database Initialization & Utility Functions ───────────────────────────────
 DB_DIR = os.path.join(os.getcwd(), "db")
 DB_PATH = os.path.join(DB_DIR, "progress.db")
 
@@ -96,9 +150,6 @@ def init_db():
 
 init_db()
 
-# --------------------------------------------------
-# 3. Duplication guard & save helpers (unchanged)
-# --------------------------------------------------
 def should_log(session_id: str, category: str, new_progress: dict) -> bool:
     conn = get_db_connection()
     c = conn.cursor()
@@ -123,7 +174,6 @@ def save_progress(category: str, progress: dict):
     sid = st.session_state.session_id
     if not should_log(sid, category, progress):
         return
-
     # JSON file
     os.makedirs(DB_DIR, exist_ok=True)
     jpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.json")
@@ -136,7 +186,6 @@ def save_progress(category: str, progress: dict):
     data.append(progress)
     with open(jpath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-
     # CSV file
     cpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.csv")
     df = pd.DataFrame([progress])
@@ -144,7 +193,6 @@ def save_progress(category: str, progress: dict):
         df.to_csv(cpath, index=False, mode="a", header=False)
     else:
         df.to_csv(cpath, index=False)
-
     # SQLite
     conn = get_db_connection()
     c = conn.cursor()
@@ -167,7 +215,6 @@ def save_annotations(case_id: str, annotations: list):
     data.extend(annotations)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
