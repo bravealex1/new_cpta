@@ -50,11 +50,40 @@ if not authentication_status:
     st.stop()
 
 
+DB_DIR = os.path.join(os.getcwd(), "db")
+DB_PATH = os.path.join(DB_DIR, "progress.db")
+
+def get_db_connection():
+    os.makedirs(DB_DIR, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS progress_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            category TEXT NOT NULL,
+            progress_json TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS annotations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_id TEXT NOT NULL,
+            annotations_json TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
 def should_log(session_id: str, category: str, new_progress: dict) -> bool:
-    """
-    Skip logging if the latest saved entry for this session/category
-    has the same last_case (for evals) or same case_id (for AI-edit).
-    """
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -73,14 +102,14 @@ def should_log(session_id: str, category: str, new_progress: dict) -> bool:
     if category == "ai_edit" and "case_id" in new_progress:
         return last.get("case_id") != new_progress.get("case_id")
     return True
-    
+
 def save_progress(category: str, progress: dict):
     sid = st.session_state.session_id
     if not should_log(sid, category, progress):
         return
 
-    # JSON file
     os.makedirs(DB_DIR, exist_ok=True)
+    # JSON file
     jpath = os.path.join(DB_DIR, f"{category}_{sid}_progress.json")
     if os.path.exists(jpath):
         with open(jpath, "r", encoding="utf-8") as f:
@@ -132,11 +161,7 @@ def save_annotations(case_id: str, annotations: list):
     conn.commit()
     conn.close()
 
-# --------------------------------------------------
-# Callback that flushes everything on logout
-# --------------------------------------------------
 def save_all_progress(_=None):
-    # Turing Test
     if (
         st.session_state.initial_eval_turing is not None
         or st.session_state.viewed_images_turing
@@ -151,7 +176,6 @@ def save_all_progress(_=None):
         }
         save_progress("turing_test", prog)
 
-    # Standard Eval
     if st.session_state.corrections_standard:
         prog = {
             "case_id":     st.session_state.last_case_standard,
@@ -161,7 +185,6 @@ def save_all_progress(_=None):
         }
         save_progress("standard_evaluation", prog)
 
-    # AI Edit
     if (
         st.session_state.assembled_ai
         or st.session_state.corrections_ai
@@ -174,9 +197,6 @@ def save_all_progress(_=None):
         }
         save_progress("ai_edit", prog)
 
-# --------------------------------------------------
-# Register logout callback
-# --------------------------------------------------
 authenticator.logout(
     location="sidebar",
     key="auth_logout",
