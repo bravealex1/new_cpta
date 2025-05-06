@@ -49,9 +49,52 @@ if not authentication_status:
         st.warning("⚠️ Please enter your username and password")
     st.stop()
 
-# At this point we know authentication_status is True:
-authenticator.logout(location="sidebar", key="auth_logout") 
+def save_all_progress(_=None):
+    """
+    Flush any in-flight progress to the DB when the user logs out.
+    The "_" parameter is required since callback receives a dict.
+    """
+    # Turing Test
+    if st.session_state.initial_eval_turing is not None or st.session_state.viewed_images_turing:
+        prog = {
+            "case_id":            st.session_state.last_case_turing,
+            "last_case":          st.session_state.last_case_turing,
+            "assignments":        st.session_state.assignments_turing,
+            "initial_eval":       st.session_state.initial_eval_turing,
+            "final_eval":         st.session_state.final_eval_turing,
+            "viewed_images":      st.session_state.viewed_images_turing
+        }
+        save_progress("turing_test", prog)
+
+    # Standard Eval: capture any un-submitted corrections
+    if st.session_state.corrections_standard:
+        prog = {
+            "case_id":      st.session_state.last_case_standard,
+            "last_case":    st.session_state.last_case_standard,
+            "assignments":  st.session_state.assignments_standard,
+            "corrections":  st.session_state.corrections_standard
+        }
+        save_progress("standard_evaluation", prog)
+
+    # AI Edit
+    if st.session_state.assembled_ai or st.session_state.corrections_ai:
+        prog = {
+            "case_id":     st.session_state.last_case_ai,
+            "mode":        st.session_state.get("last_mode_ai", "Free"),
+            "assembled":   st.session_state.assembled_ai,
+            "corrections": st.session_state.corrections_ai
+        }
+        save_progress("ai_edit", prog)
+
+
+authenticator.logout(
+    location="sidebar",
+    key="auth_logout",
+    callback=save_all_progress
+)
+
 st.sidebar.markdown(f"Logged in as **{name}**")
+
 
 # --------------------------------------------------
 # 1. Session ID per user (persist across logins)
@@ -231,10 +274,8 @@ init_state("assembled_ai",          "")
 # --------------------------------------------------
 # 7. Routing Setup & Helpers
 # --------------------------------------------------
-params = st.query_params
-if "page" in params:
-    st.session_state.page = params["page"][0]
-elif "page" not in st.session_state:
+# Ensure a default page is set once
+if "page" not in st.session_state:
     st.session_state.page = "index"
 
 BASE_IMAGE_DIR = "2D_Image_clean"
@@ -310,11 +351,11 @@ def index():
 
 def turing_test():
     idx = st.session_state.last_case_turing
+    # If we're past the last case, show completion and let user go Home
     if idx >= total_cases:
         st.success("Turing Test complete!")
         if st.button("Home"):
             st.session_state.page = "index"
-            st.query_params["page"] = ["index"]
             st.rerun()
         return
 
@@ -388,7 +429,6 @@ def evaluate_case():
 
     if st.button("Save & Back"):
         st.session_state.page = "index"
-        st.query_params["page"] = ["index"]
         st.rerun()
 
     gt = load_text(os.path.join(BASE_IMAGE_DIR, case, "text.txt"))
@@ -464,7 +504,6 @@ def ai_edit():
         }
         save_progress("ai_edit", prog)
         st.session_state.page = "index"
-        st.query_params["page"] = ["index"]
         st.rerun()
 
     orig = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
