@@ -50,7 +50,7 @@ if not authentication_status:
     st.stop()
 
 # At this point we know authentication_status is True:
-authenticator.logout(location="sidebar", key="logout")
+authenticator.logout(location="sidebar", key="auth_logout") 
 st.sidebar.markdown(f"Logged in as **{name}**")
 
 # --------------------------------------------------
@@ -231,7 +231,7 @@ init_state("assembled_ai",          "")
 # --------------------------------------------------
 # 7. Routing Setup & Helpers
 # --------------------------------------------------
-params = st.experimental_get_query_params()
+params = st.query_params
 if "page" in params:
     st.session_state.page = params["page"][0]
 elif "page" not in st.session_state:
