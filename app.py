@@ -55,8 +55,8 @@ if not authentication_status:
     st.stop()
 
 # At this point we know authentication_status is True:
-authenticator.logout(location="sidebar", key="logout")
-st.sidebar.markdown(f"Logged in as **{name}**")
+# authenticator.logout(location="sidebar", key="logout")
+# st.sidebar.markdown(f"Logged in as **{name}**")
 
 
 # --------------------------------------------------
