@@ -49,6 +49,15 @@ if not authentication_status:
         st.warning("⚠️ Please enter your username and password")
     st.stop()
 
+
+authenticator.logout(
+    location="sidebar",
+    key="auth_logout",
+    callback=save_all_progress
+)
+
+st.sidebar.markdown(f"Logged in as **{name}**")
+
 def save_all_progress(_=None):
     """
     Flush any in-flight progress to the DB when the user logs out.
@@ -85,15 +94,6 @@ def save_all_progress(_=None):
             "corrections": st.session_state.corrections_ai
         }
         save_progress("ai_edit", prog)
-
-
-authenticator.logout(
-    location="sidebar",
-    key="auth_logout",
-    callback=save_all_progress
-)
-
-st.sidebar.markdown(f"Logged in as **{name}**")
 
 
 # --------------------------------------------------
