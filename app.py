@@ -296,19 +296,19 @@ def index():
 
     c1, c2, c3, c4 = st.columns(4)
     if c1.button("Turing Test"):
-        st.query_params["page"] = "turing_test"  
+        st.query_params["page"] = ["turing_test"]  
         st.session_state.page = "turing_test"
         st.rerun()
     if c2.button("Standard Eval"):
-        st.query_params["page"] = "standard_eval"
+        st.query_params["page"] = ["standard_eval"]
         st.session_state.page = "standard_eval"
         st.rerun()
     if c3.button("AI Report Edit"):
-        st.query_params["page"] = "ai_edit"
+        st.query_params["page"] = ["ai_edit"]
         st.session_state.page = "ai_edit"
         st.rerun()
     if c4.button("View All Results"):
-        st.query_params["page"] = "view_results"
+        st.query_params["page"] = ["view_results"]
         st.session_state.page = "view_results"
         st.rerun()
 
@@ -318,7 +318,7 @@ def turing_test():
         st.success("Turing Test complete!")
         if st.button("Home"):
             st.session_state.page = "index"
-            st.query_params["page"] = "index"
+            st.query_params["page"] = ["index"]
             st.rerun()
         return
 
@@ -326,7 +326,7 @@ def turing_test():
     st.header(f"Turing Test: {case} ({idx+1}/{total_cases})")
 
     if st.button("Save & Back"):
-        st.session_state.page = "index"
+        st.session_state.page = ["index"]
         st.query_params["page"] = "index"
         st.rerun()
 
@@ -385,7 +385,7 @@ def evaluate_case():
         st.success("Standard Eval complete!")
         if st.button("Home"):
             st.session_state.page = "index"
-            st.experimental_set_query_params(page="index")
+            st.query_params["page"] = ["index"]
             st.rerun()
         return
 
@@ -394,7 +394,7 @@ def evaluate_case():
 
     if st.button("Save & Back"):
         st.session_state.page = "index"
-        st.experimental_set_query_params(page="index")
+        st.query_params["page"] = ["index"]
         st.rerun()
 
     gt = load_text(os.path.join(BASE_IMAGE_DIR, case, "text.txt"))
@@ -455,7 +455,7 @@ def ai_edit():
         st.success("AI Edit complete!")
         if st.button("Home"):
             st.session_state.page = "index"
-            st.query_params["page"] = "index"
+            st.query_params["page"] = ["index"]
             st.rerun()
         return
 
@@ -471,7 +471,7 @@ def ai_edit():
         }
         save_progress("ai_edit", prog)
         st.session_state.page = "index"
-        st.query_params["page"] = "index"
+        st.query_params["page"] = ["index"]
         st.rerun()
 
     orig = load_text(os.path.join(BASE_IMAGE_DIR, case, "pred.txt"))
@@ -531,7 +531,7 @@ def view_all_results():
     st.title("All Saved Results")
     if st.button("Home"):
         st.session_state.page = "index"
-        st.query_params["page"] = "index"
+        st.query_params["page"] = ["index"]
         st.rerun()
 
     conn = get_db_connection()
