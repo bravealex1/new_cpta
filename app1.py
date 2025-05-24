@@ -766,260 +766,236 @@ import glob
 import csv
 from datetime import datetime
 
-# Configuration
-DB_PATH = "turing_test.db"
-LOGS_DIR = "logs"
-if not os.path.exists(LOGS_DIR):
-    os.makedirs(LOGS_DIR, exist_ok=True)
+# ─── Configuration ─────────────────────────────────────────────────────────────
+BASE_IMAGE_DIR = "2D_Image_clean"
+DB_PATH        = "turing_test.db"
+LOGS_DIR       = "logs"
 
-# Initialize SQLite database (create tables if not exist)
-conn = sqlite3.connect(DB_PATH)
-c = conn.cursor()
-c.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        username TEXT PRIMARY KEY,
-        password TEXT
-    )
-""")
-c.execute("""
-    CREATE TABLE IF NOT EXISTS results (
-        username TEXT,
-        case_id INTEGER,
-        truth TEXT,
-        user_guess TEXT,
-        correct INTEGER,
-        timestamp TEXT
-    )
-""")
-conn.commit()
-# If no users exist, create default demo users (with hashed passwords)
-res = c.execute("SELECT COUNT(*) FROM users").fetchone()
-if res and res[0] == 0:
-    demo_users = {"radiologist1": "password1", "radiologist2": "password2"}
-    for user, pw in demo_users.items():
-        pw_hash = hashlib.sha256(pw.encode()).hexdigest()
-        c.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", (user, pw_hash))
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+# ─── Database Initialization ────────────────────────────────────────────────────
+def init_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    c = conn.cursor()
+    # Users table: passwords stored as SHA256 hashes
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            username     TEXT PRIMARY KEY,
+            password     TEXT NOT NULL
+        )
+    """)
+    # Results table: one row per submitted case
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS results (
+            username     TEXT NOT NULL,
+            case_folder  TEXT NOT NULL,
+            truth        TEXT NOT NULL,
+            user_guess   TEXT NOT NULL,
+            correct      INTEGER NOT NULL,
+            timestamp    TEXT NOT NULL
+        )
+    """)
     conn.commit()
-conn.close()
+    # Seed two demo users if none exist
+    c.execute("SELECT COUNT(*) FROM users")
+    if c.fetchone()[0] == 0:
+        demo = {"radiologist1": "password1", "radiologist2": "password2"}
+        for u,pw in demo.items():
+            h = hashlib.sha256(pw.encode()).hexdigest()
+            c.execute("INSERT INTO users(username,password) VALUES (?,?)", (u,h))
+        conn.commit()
+    conn.close()
 
-# Helper functions
+init_db()
+
+# ─── Helper Functions ────────────────────────────────────────────────────────────
 def check_credentials(username: str, password: str) -> bool:
-    """Verify username/password against the database (passwords stored as SHA-256 hashes)."""
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("SELECT password FROM users WHERE username=?;", (username,))
-        row = cur.fetchone()
-        conn.close()
-        if row:
-            stored_pw_hash = row[0]
-            input_pw_hash = hashlib.sha256(password.encode()).hexdigest()
-            return input_pw_hash == stored_pw_hash
-    except Exception as e:
-        print("DB error on login:", e)
-    return False
+    """Verify username/password against the users table."""
+    pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cur  = conn.cursor()
+    cur.execute("SELECT password FROM users WHERE username=?", (username,))
+    row = cur.fetchone()
+    conn.close()
+    return bool(row and row[0] == pw_hash)
 
 def load_user_progress(username: str):
-    """Load completed cases and their outcomes for the given user from the database."""
-    completed_cases = []
-    progress = {}
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("SELECT case_id, truth, user_guess, correct FROM results WHERE username=?;", (username,))
-        rows = cur.fetchall()
-        conn.close()
-        for case_id, truth, guess, correct in rows:
-            completed_cases.append(case_id)
-            progress[case_id] = {"truth": truth, "guess": guess, "correct": correct}
-    except Exception as e:
-        print("DB error on load progress:", e)
-    completed_cases = sorted(set(completed_cases))
-    return completed_cases, progress
+    """Return (list of completed folders, dict of their details)."""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT case_folder, truth, user_guess, correct
+        FROM results WHERE username=?
+    """, (username,))
+    rows = cur.fetchall()
+    conn.close()
 
-def save_result(username: str, case_id: int, truth: str, guess: str, correct: int):
-    """Save a single evaluation result to the SQLite database and the user's CSV log."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # Save to SQLite
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO results (username, case_id, truth, user_guess, correct, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?);
-        """, (username, case_id, truth, guess, correct, timestamp))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print("DB error on save result:", e)
-    # Append to CSV log
-    log_file = os.path.join(LOGS_DIR, f"{username}_results.csv")
-    file_exists = os.path.isfile(log_file)
-    try:
-        with open(log_file, 'a', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            if not file_exists:
-                writer.writerow(["username", "case_id", "truth", "user_guess", "correct", "timestamp"])
-            writer.writerow([username, case_id, truth, guess, correct, timestamp])
-    except Exception as e:
-        print("Error writing to CSV log:", e)
+    completed = []
+    prog = {}
+    for folder, truth, guess, corr in rows:
+        if folder not in completed:
+            completed.append(folder)
+        prog[folder] = {"truth": truth, "guess": guess, "correct": corr}
+    return completed, prog
 
-# Determine list of case IDs available (by folder or file naming)
-CASE_IDS = []
-CASE_DIR_MAP = {}  # mapping case_id to actual folder name if applicable
-if os.path.isdir("cases"):
-    subdirs = [d for d in os.listdir("cases") if os.path.isdir(os.path.join("cases", d))]
-    for d in subdirs:
-        if d.isdigit():
-            cid = int(d)
-            CASE_IDS.append(cid); CASE_DIR_MAP[cid] = d
-        elif d.lower().startswith("case"):
-            num_part = ''.join(filter(str.isdigit, d))
-            if num_part:
-                cid = int(num_part)
-                CASE_IDS.append(cid); CASE_DIR_MAP[cid] = d
-    CASE_IDS = sorted(set(CASE_IDS))
-    if not CASE_IDS:
-        # If no case subfolders, try to infer from filenames in "cases" directory
-        patterns = ["*AI*.png", "*AI*.jpg", "*GT*.png", "*GT*.jpg", "*Radiologist*.png", "*Radiologist*.jpg"]
-        image_files = []
-        for pat in patterns:
-            image_files += glob.glob(os.path.join("cases", pat))
-        for f in image_files:
-            name = os.path.basename(f)
-            num_str = ''.join(filter(str.isdigit, name))
-            if num_str:
-                CASE_IDS.append(int(num_str))
-        CASE_IDS = sorted(set(CASE_IDS))
-if not CASE_IDS:
-    CASE_IDS = list(range(1, 11))  # default to 1-10 if data not found (for demo)
+def save_result(username: str, folder: str, truth: str, guess: str, correct: int):
+    """Persist a single Turing Test result."""
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 1) SQLite
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cur  = conn.cursor()
+    cur.execute("""
+        INSERT INTO results(username,case_folder,truth,user_guess,correct,timestamp)
+        VALUES(?,?,?,?,?,?)
+    """, (username, folder, truth, guess, correct, ts))
+    conn.commit()
+    conn.close()
+    # 2) CSV log
+    log_path = os.path.join(LOGS_DIR, f"{username}_results.csv")
+    write_header = not os.path.isfile(log_path)
+    with open(log_path, "a", newline="") as f:
+        w = csv.writer(f)
+        if write_header:
+            w.writerow(["username","case_folder","truth","user_guess","correct","timestamp"])
+        w.writerow([username, folder, truth, guess, correct, ts])
 
-# Initialize session state on first run
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.username = None
+def list_cases():
+    """List all subfolders under BASE_IMAGE_DIR as case identifiers."""
+    if not os.path.isdir(BASE_IMAGE_DIR):
+        return []
+    return sorted([
+        d for d in os.listdir(BASE_IMAGE_DIR)
+        if os.path.isdir(os.path.join(BASE_IMAGE_DIR, d))
+    ])
+
+def display_carousel(case_folder: str):
+    """Show all images in BASE_IMAGE_DIR/case_folder with Prev/Next controls."""
+    folder = os.path.join(BASE_IMAGE_DIR, case_folder)
+    images = sorted([
+        os.path.join(folder, fn)
+        for fn in os.listdir(folder)
+        if fn.lower().endswith((".png", ".jpg", ".jpeg"))
+    ])
+    if not images:
+        st.info("No images found for this case.")
+        return
+
+    key = f"slice_{case_folder}"
+    if key not in st.session_state:
+        st.session_state[key] = 0
+    idx = st.session_state[key]
+
+    c1, c2, c3 = st.columns([1, 8, 1])
+    with c1:
+        if st.button("⟨ Prev", key=f"prev_{case_folder}") and idx > 0:
+            st.session_state[key] -= 1
+            st.rerun()
+    with c2:
+        st.image(images[idx], use_column_width=True)
+        st.caption(f"Slice {idx+1}/{len(images)}")
+    with c3:
+        if st.button("Next ⟩", key=f"next_{case_folder}") and idx < len(images) - 1:
+            st.session_state[key] += 1
+            st.rerun()
+
+# ─── Discover Cases ──────────────────────────────────────────────────────────────
+cases       = list_cases()
+total_cases = len(cases)
+
+# ─── Streamlit Session State Setup ──────────────────────────────────────────────
+if "logged_in"     not in st.session_state:
+    st.session_state.logged_in       = False
+    st.session_state.username        = None
     st.session_state.completed_cases = []
-    st.session_state.progress = {}
-    st.session_state.current_case = None
+    st.session_state.progress        = {}
+    st.session_state.current_case    = None
+    st.session_state.assignment      = {}
 
-# Sidebar: Login or Logout
+# ─── Sidebar: Login / Logout ─────────────────────────────────────────────────────
 if st.session_state.logged_in:
-    st.sidebar.write(f"**Logged in as:** {st.session_state.username}")
+    st.sidebar.write(f"**User:** {st.session_state.username}")
     if st.sidebar.button("Logout"):
         st.session_state.clear()
         st.rerun()
 else:
-    st.sidebar.title("User Login")
-    username_input = st.sidebar.text_input("Username")
-    password_input = st.sidebar.text_input("Password", type="password")
+    st.sidebar.header("Log in")
+    user_in = st.sidebar.text_input("Username")
+    pw_in   = st.sidebar.text_input("Password", type="password")
     if st.sidebar.button("Login"):
-        if username_input and password_input and check_credentials(username_input, password_input):
-            # Successful login
-            st.session_state.logged_in = True
-            st.session_state.username = username_input
-            # Load user's past progress
-            completed, progress = load_user_progress(username_input)
-            st.session_state.completed_cases = completed
-            st.session_state.progress = progress
-            # Set starting case (first not completed)
-            next_case = None
-            for cid in CASE_IDS:
-                if cid not in completed:
-                    next_case = cid
+        if check_credentials(user_in, pw_in):
+            # Clear any old state
+            st.session_state.clear()
+            st.session_state.logged_in       = True
+            st.session_state.username        = user_in
+            # Load their past progress
+            done, prog = load_user_progress(user_in)
+            st.session_state.completed_cases = done
+            st.session_state.progress        = prog
+            # Pick the first not-completed folder
+            nxt = None
+            for cf in cases:
+                if cf not in done:
+                    nxt = cf
                     break
-            st.session_state.current_case = next_case
+            st.session_state.current_case = nxt
             st.rerun()
         else:
-            st.sidebar.error("Invalid username or password")
+            st.sidebar.error("Invalid credentials")
 
-# Main: only show Turing Test interface if logged in
+# ─── Main: Turing Test ────────────────────────────────────────────────────────────
 if st.session_state.logged_in:
     st.title("Turing Test")
+
     if st.session_state.current_case is None:
-        st.success("You have completed all cases. Thank you for your participation!")
+        st.success("🎉 You've finished all cases. Thank you!")
     else:
-        case_id = st.session_state.current_case
-        total_cases = len(CASE_IDS)
-        st.header(f"Case {case_id}")
-        st.write(f"Progress: Case {CASE_IDS.index(case_id) + 1} of {total_cases}")
-        # Randomly assign this case to show AI or Radiologist result (store in session for consistency)
-        assign_key = f"assign_{case_id}"
-        if assign_key not in st.session_state:
+        cf  = st.session_state.current_case
+        idx = cases.index(cf)
+        st.header(f"Case: {cf} ({idx+1}/{total_cases})")
+
+        # Randomly assign "AI" vs "Radiologist" once per folder
+        key_assign = f"assign_{cf}"
+        if key_assign not in st.session_state:
             import random
-            st.session_state[assign_key] = random.choice(["AI", "Radiologist"])
-        assignment = st.session_state[assign_key]  # "AI" or "Radiologist"
-        # Load images for this case and assignment from the data folder
-        images = []
-        if os.path.isdir("cases"):
-            folder_name = CASE_DIR_MAP.get(case_id, str(case_id))
-            case_path = os.path.join("cases", folder_name)
-            if os.path.isdir(case_path):
-                if assignment == "Radiologist":
-                    rad_dir = os.path.join(case_path, "Radiologist")
-                    gt_dir = os.path.join(case_path, "GT")
-                    if os.path.isdir(rad_dir):
-                        images = sorted(glob.glob(os.path.join(rad_dir, "*.png")) + glob.glob(os.path.join(rad_dir, "*.jpg")))
-                    elif os.path.isdir(gt_dir):
-                        images = sorted(glob.glob(os.path.join(gt_dir, "*.png")) + glob.glob(os.path.join(gt_dir, "*.jpg")))
-                    else:
-                        # No subfolder; find files in case folder
-                        images = sorted(glob.glob(os.path.join(case_path, "*Radiologist*.png")) +
-                                        glob.glob(os.path.join(case_path, "*Radiologist*.jpg")) +
-                                        glob.glob(os.path.join(case_path, "*GT*.png")) +
-                                        glob.glob(os.path.join(case_path, "*GT*.jpg")))
-                else:  # assignment == "AI"
-                    ai_dir = os.path.join(case_path, "AI")
-                    if os.path.isdir(ai_dir):
-                        images = sorted(glob.glob(os.path.join(ai_dir, "*.png")) + glob.glob(os.path.join(ai_dir, "*.jpg")))
-                    else:
-                        images = sorted(glob.glob(os.path.join(case_path, "*AI*.png")) +
-                                        glob.glob(os.path.join(case_path, "*AI*.jpg")))
-            else:
-                # No case-specific folder; look in top-level "cases" directory
-                if assignment == "Radiologist":
-                    images = sorted(glob.glob(os.path.join("cases", f"*{case_id}_Radiologist_*.png")) +
-                                    glob.glob(os.path.join("cases", f"*{case_id}_Radiologist_*.jpg")) +
-                                    glob.glob(os.path.join("cases", f"*{case_id}_GT_*.png")) +
-                                    glob.glob(os.path.join("cases", f"*{case_id}_GT_*.jpg")))
-                else:
-                    images = sorted(glob.glob(os.path.join("cases", f"*{case_id}_AI_*.png")) +
-                                    glob.glob(os.path.join("cases", f"*{case_id}_AI_*.jpg")))
-        if not images:
-            st.warning("Images for this case not found. Please ensure the data is available.")
-        # Display image(s) with a slider if multiple
-        if len(images) > 1:
-            img_index = st.slider("Image", 1, len(images), 1)
-            st.image(images[img_index - 1], use_column_width=True)
-        elif len(images) == 1:
-            st.image(images[0], use_column_width=True)
-        # Choice input for Turing test (AI vs Radiologist)
-        options = ["Please select an option", "AI", "Radiologist"]
-        guess_key = f"guess_case_{case_id}"
+            st.session_state[key_assign] = random.choice(["AI", "Radiologist"])
+        truth = st.session_state[key_assign]
+
+        # Display image carousel
+        display_carousel(cf)
+
+        # Collect the user's guess
+        guess_key = f"guess_{cf}"
         if guess_key not in st.session_state:
-            st.session_state[guess_key] = options[0]
-        st.radio("I think this annotation was generated by:", options, 
-                 index=options.index(st.session_state[guess_key]) if st.session_state[guess_key] in options else 0, 
-                 key=guess_key)
-        # Enable submit only if a valid choice is made
-        can_submit = st.session_state[guess_key] != options[0]
+            st.session_state[guess_key] = "Select..."
+        choice = st.radio(
+            "This annotation was generated by:", 
+            ["Select...", "AI", "Radiologist"],
+            index=["Select...", "AI", "Radiologist"].index(st.session_state[guess_key]),
+            key=guess_key
+        )
+        can_submit = choice != "Select..."
         if st.button("Submit", disabled=not can_submit):
             if not can_submit:
-                st.warning("Please select an option before submitting.")
+                st.warning("Please pick AI or Radiologist before submitting.")
             else:
-                user_guess = st.session_state[guess_key]  # "AI" or "Radiologist"
-                truth = assignment  # actual identity of shown annotation
-                correct = 1 if user_guess == truth else 0
-                save_result(st.session_state.username, case_id, truth, user_guess, correct)
-                # Update session progress
-                st.session_state.completed_cases.append(case_id)
-                st.session_state.progress[case_id] = {"truth": truth, "guess": user_guess, "correct": correct}
-                # Determine next case
-                next_case = None
-                for cid in CASE_IDS:
-                    if cid not in st.session_state.completed_cases:
-                        next_case = cid
+                correct = 1 if choice == truth else 0
+                save_result(
+                    st.session_state.username,
+                    cf, truth, choice, correct
+                )
+                # Update in-memory progress
+                st.session_state.completed_cases.append(cf)
+                st.session_state.progress[cf] = {
+                    "truth": truth, "guess": choice, "correct": correct
+                }
+                # Find next folder
+                nxt = None
+                for cff in cases:
+                    if cff not in st.session_state.completed_cases:
+                        nxt = cff
                         break
-                st.session_state.current_case = next_case
-                # Reset selection for this case to default and move on
-                st.session_state[guess_key] = options[0]
+                st.session_state.current_case = nxt
+                # Reset slice index & guess
+                st.session_state.pop(f"slice_{cf}", None)
+                st.session_state[guess_key] = "Select..."
                 st.rerun()
