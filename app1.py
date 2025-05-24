@@ -907,7 +907,7 @@ if st.session_state.logged_in:
     st.sidebar.write(f"**Logged in as:** {st.session_state.username}")
     if st.sidebar.button("Logout"):
         st.session_state.clear()
-        st.experimental_rerun()
+        st.rerun()
 else:
     st.sidebar.title("User Login")
     username_input = st.sidebar.text_input("Username")
@@ -928,7 +928,7 @@ else:
                     next_case = cid
                     break
             st.session_state.current_case = next_case
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.sidebar.error("Invalid username or password")
 
@@ -1022,4 +1022,4 @@ if st.session_state.logged_in:
                 st.session_state.current_case = next_case
                 # Reset selection for this case to default and move on
                 st.session_state[guess_key] = options[0]
-                st.experimental_rerun()
+                st.rerun()
