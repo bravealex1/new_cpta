@@ -777,32 +777,35 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 def init_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     c = conn.cursor()
-    # Users table: passwords stored as SHA256 hashes
+    # Users table (passwords are SHA-256 hashes)
     c.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            username     TEXT PRIMARY KEY,
-            password     TEXT NOT NULL
+            username TEXT PRIMARY KEY,
+            password TEXT NOT NULL
         )
     """)
-    # Results table: one row per submitted case
+    # Results table
     c.execute("""
         CREATE TABLE IF NOT EXISTS results (
-            username     TEXT NOT NULL,
-            case_folder  TEXT NOT NULL,
-            truth        TEXT NOT NULL,
-            user_guess   TEXT NOT NULL,
-            correct      INTEGER NOT NULL,
-            timestamp    TEXT NOT NULL
+            username    TEXT NOT NULL,
+            case_folder TEXT NOT NULL,
+            truth       TEXT NOT NULL,
+            user_guess  TEXT NOT NULL,
+            correct     INTEGER NOT NULL,
+            timestamp   TEXT NOT NULL
         )
     """)
     conn.commit()
-    # Seed two demo users if none exist
+    # Seed demo users if none exist
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         demo = {"radiologist1": "password1", "radiologist2": "password2"}
-        for u,pw in demo.items():
-            h = hashlib.sha256(pw.encode()).hexdigest()
-            c.execute("INSERT INTO users(username,password) VALUES (?,?)", (u,h))
+        for user, pw in demo.items():
+            pw_hash = hashlib.sha256(pw.encode()).hexdigest()
+            c.execute(
+                "INSERT INTO users(username,password) VALUES (?,?)",
+                (user, pw_hash)
+            )
         conn.commit()
     conn.close()
 
@@ -820,7 +823,7 @@ def check_credentials(username: str, password: str) -> bool:
     return bool(row and row[0] == pw_hash)
 
 def load_user_progress(username: str):
-    """Return (list of completed folders, dict of their details)."""
+    """Return (list of completed folders, dict of details)."""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cur  = conn.cursor()
     cur.execute("""
@@ -829,7 +832,6 @@ def load_user_progress(username: str):
     """, (username,))
     rows = cur.fetchall()
     conn.close()
-
     completed = []
     prog = {}
     for folder, truth, guess, corr in rows:
@@ -841,7 +843,7 @@ def load_user_progress(username: str):
 def save_result(username: str, folder: str, truth: str, guess: str, correct: int):
     """Persist a single Turing Test result."""
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # 1) SQLite
+    # SQLite
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cur  = conn.cursor()
     cur.execute("""
@@ -850,7 +852,7 @@ def save_result(username: str, folder: str, truth: str, guess: str, correct: int
     """, (username, folder, truth, guess, correct, ts))
     conn.commit()
     conn.close()
-    # 2) CSV log
+    # CSV log
     log_path = os.path.join(LOGS_DIR, f"{username}_results.csv")
     write_header = not os.path.isfile(log_path)
     with open(log_path, "a", newline="") as f:
@@ -879,12 +881,10 @@ def display_carousel(case_folder: str):
     if not images:
         st.info("No images found for this case.")
         return
-
     key = f"slice_{case_folder}"
     if key not in st.session_state:
         st.session_state[key] = 0
     idx = st.session_state[key]
-
     c1, c2, c3 = st.columns([1, 8, 1])
     with c1:
         if st.button("⟨ Prev", key=f"prev_{case_folder}") and idx > 0:
@@ -902,8 +902,8 @@ def display_carousel(case_folder: str):
 cases       = list_cases()
 total_cases = len(cases)
 
-# ─── Streamlit Session State Setup ──────────────────────────────────────────────
-if "logged_in"     not in st.session_state:
+# ─── Session State Initialization ───────────────────────────────────────────────
+if "logged_in" not in st.session_state:
     st.session_state.logged_in       = False
     st.session_state.username        = None
     st.session_state.completed_cases = []
@@ -923,15 +923,15 @@ else:
     pw_in   = st.sidebar.text_input("Password", type="password")
     if st.sidebar.button("Login"):
         if check_credentials(user_in, pw_in):
-            # Clear any old state
+            # Clear any old keys
             st.session_state.clear()
+            # Set up new session
             st.session_state.logged_in       = True
             st.session_state.username        = user_in
-            # Load their past progress
             done, prog = load_user_progress(user_in)
             st.session_state.completed_cases = done
             st.session_state.progress        = prog
-            # Pick the first not-completed folder
+            # Next case to evaluate
             nxt = None
             for cf in cases:
                 if cf not in done:
@@ -945,57 +945,56 @@ else:
 # ─── Main: Turing Test ────────────────────────────────────────────────────────────
 if st.session_state.logged_in:
     st.title("Turing Test")
+    cf = st.session_state.current_case
 
-    if st.session_state.current_case is None:
+    if cf is None:
         st.success("🎉 You've finished all cases. Thank you!")
     else:
-        cf  = st.session_state.current_case
         idx = cases.index(cf)
         st.header(f"Case: {cf} ({idx+1}/{total_cases})")
 
-        # Randomly assign "AI" vs "Radiologist" once per folder
-        key_assign = f"assign_{cf}"
-        if key_assign not in st.session_state:
+        # Assign ground truth once per folder
+        ak = f"assign_{cf}"
+        if ak not in st.session_state:
             import random
-            st.session_state[key_assign] = random.choice(["AI", "Radiologist"])
-        truth = st.session_state[key_assign]
+            st.session_state[ak] = random.choice(["AI", "Radiologist"])
+        truth = st.session_state[ak]
 
-        # Display image carousel
+        # Show images
         display_carousel(cf)
 
-        # Collect the user's guess
+        # Collect guess
         guess_key = f"guess_{cf}"
+        options   = ["Select...", "AI", "Radiologist"]
         if guess_key not in st.session_state:
-            st.session_state[guess_key] = "Select..."
+            st.session_state[guess_key] = options[0]
         choice = st.radio(
-            "This annotation was generated by:", 
-            ["Select...", "AI", "Radiologist"],
-            index=["Select...", "AI", "Radiologist"].index(st.session_state[guess_key]),
+            "This annotation was generated by:",
+            options,
+            index=options.index(st.session_state[guess_key]),
             key=guess_key
         )
-        can_submit = choice != "Select..."
+        can_submit = choice != options[0]
         if st.button("Submit", disabled=not can_submit):
             if not can_submit:
-                st.warning("Please pick AI or Radiologist before submitting.")
+                st.warning("Please select AI or Radiologist first.")
             else:
                 correct = 1 if choice == truth else 0
-                save_result(
-                    st.session_state.username,
-                    cf, truth, choice, correct
-                )
-                # Update in-memory progress
+                save_result(st.session_state.username, cf, truth, choice, correct)
+                # Update progress
                 st.session_state.completed_cases.append(cf)
                 st.session_state.progress[cf] = {
                     "truth": truth, "guess": choice, "correct": correct
                 }
-                # Find next folder
+                # Find next case
                 nxt = None
                 for cff in cases:
                     if cff not in st.session_state.completed_cases:
                         nxt = cff
                         break
                 st.session_state.current_case = nxt
-                # Reset slice index & guess
+                # Reset the radio for next run
+                st.session_state.pop(guess_key, None)
+                # Also reset carousel index
                 st.session_state.pop(f"slice_{cf}", None)
-                st.session_state[guess_key] = "Select..."
                 st.rerun()
